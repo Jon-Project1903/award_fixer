@@ -1,3 +1,4 @@
+import logging
 import os
 import shutil
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
@@ -5,6 +6,8 @@ from sqlmodel import Session
 from database import get_session
 from models import Project
 from services.import_service import import_db_source, import_unified
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/projects", tags=["imports"])
 
@@ -26,7 +29,14 @@ async def upload_db_source(
     with open(file_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
-    result = import_db_source(session, project_id, file_path)
+    logger.info("Saved db_source upload to %s (%d bytes)", file_path, os.path.getsize(file_path))
+
+    try:
+        result = import_db_source(session, project_id, file_path)
+    except Exception as e:
+        logger.exception("Failed to import db_source CSV for project %d", project_id)
+        raise HTTPException(status_code=422, detail=f"CSV import failed: {e}")
+    logger.info("db_source import result for project %d: %s", project_id, result)
     return result
 
 
@@ -44,5 +54,12 @@ async def upload_unified(
     with open(file_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
-    result = import_unified(session, project_id, file_path)
+    logger.info("Saved unified upload to %s (%d bytes)", file_path, os.path.getsize(file_path))
+
+    try:
+        result = import_unified(session, project_id, file_path)
+    except Exception as e:
+        logger.exception("Failed to import unified XLSX for project %d", project_id)
+        raise HTTPException(status_code=422, detail=f"XLSX import failed: {e}")
+    logger.info("unified import result for project %d: %s", project_id, result)
     return result

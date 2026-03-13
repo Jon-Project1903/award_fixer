@@ -1,10 +1,13 @@
 import csv
+import logging
 import re
 from datetime import date, datetime
 from typing import Optional
 
 import openpyxl
 from sqlmodel import Session, select
+
+logger = logging.getLogger(__name__)
 
 from models import (
     DbSourcePatent, DbSourceInventor,
@@ -97,48 +100,77 @@ def import_db_source(session: Session, project_id: int, file_path: str) -> dict:
     """Import db_source CSV. Groups rows by Patent No. to create one patent with multiple inventors."""
     clear_db_source(session, project_id)
 
-    with open(file_path, "r", encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f)
-        rows = list(reader)
+    # Try UTF-8 first, fall back to latin-1 (accepts all byte values)
+    for encoding in ("utf-8-sig", "latin-1"):
+        try:
+            with open(file_path, "r", encoding=encoding) as f:
+                reader = csv.DictReader(f)
+                rows = list(reader)
+                headers = reader.fieldnames
+            logger.info("CSV opened with encoding=%s, headers: %s", encoding, headers)
+            break
+        except UnicodeDecodeError:
+            logger.warning("Failed to read CSV with encoding=%s, trying next", encoding)
+            continue
+
+    logger.info("Read %d rows from %s", len(rows), file_path)
 
     # Group by Patent No.
     groups: dict[str, list[dict]] = {}
-    for row in rows:
-        key = row["Patent No."].strip()
+    for i, row in enumerate(rows):
+        patent_no_val = row.get("Patent No.")
+        if patent_no_val is None:
+            logger.warning("Row %d missing 'Patent No.' column. Keys: %s", i + 1, list(row.keys()))
+            continue
+        key = patent_no_val.strip()
+        if not key:
+            logger.warning("Row %d has empty 'Patent No.' value, skipping", i + 1)
+            continue
         groups.setdefault(key, []).append(row)
+
+    logger.info("Grouped into %d unique patents", len(groups))
 
     patent_count = 0
     inventor_count = 0
 
     for patent_no, group_rows in groups.items():
         first = group_rows[0]
-        patent = DbSourcePatent(
-            project_id=project_id,
-            asset_name=first["Patent: Asset Name"].strip(),
-            patent_no=patent_no,
-            patent_no_numeric=normalize_patent_number(patent_no),
-            title=first["Title"].strip(),
-            issue_date=parse_date(first["Issue Date of Patent"]),
-        )
-        session.add(patent)
-        session.flush()  # get patent.id
-        patent_count += 1
+        try:
+            patent = DbSourcePatent(
+                project_id=project_id,
+                asset_name=first["Patent: Asset Name"].strip(),
+                patent_no=patent_no,
+                patent_no_numeric=normalize_patent_number(patent_no),
+                title=first["Title"].strip(),
+                issue_date=parse_date(first["Issue Date of Patent"]),
+            )
+            session.add(patent)
+            session.flush()  # get patent.id
+            patent_count += 1
+        except Exception:
+            logger.exception("Failed to create patent from row with Patent No. '%s'. Row data: %s", patent_no, first)
+            raise
 
         for row in group_rows:
-            name = row["Inventor: Legal Name"].strip()
-            inventor = DbSourceInventor(
-                db_source_patent_id=patent.id,
-                legal_name=name,
-                name_normalized=normalize_name(name),
-                office_location_country=row.get("Inventor: Office Location Country", "").strip() or None,
-                work_country_iso=row.get("Inventor: Work Country ISO code", "").strip() or None,
-                address=row.get("Inventor: Address", "").strip() or None,
-                award_type=row.get("Inventor: Award Type", "").strip() or None,
-            )
-            session.add(inventor)
-            inventor_count += 1
+            try:
+                name = row["Inventor: Legal Name"].strip()
+                inventor = DbSourceInventor(
+                    db_source_patent_id=patent.id,
+                    legal_name=name,
+                    name_normalized=normalize_name(name),
+                    office_location_country=row.get("Inventor: Office Location Country", "").strip() or None,
+                    work_country_iso=row.get("Inventor: Work Country ISO code", "").strip() or None,
+                    address=row.get("Inventor: Address", "").strip() or None,
+                    award_type=row.get("Inventor: Award Type", "").strip() or None,
+                )
+                session.add(inventor)
+                inventor_count += 1
+            except Exception:
+                logger.exception("Failed to create inventor from row: %s", row)
+                raise
 
     session.commit()
+    logger.info("db_source import complete: %d patents, %d inventors", patent_count, inventor_count)
     return {"patents_imported": patent_count, "inventors_imported": inventor_count}
 
 
@@ -151,35 +183,43 @@ def import_unified(session: Session, project_id: int, file_path: str) -> dict:
 
     # Read header row
     headers = [cell.value for cell in next(ws.iter_rows(min_row=1, max_row=1))]
+    logger.info("XLSX headers: %s", headers)
 
     patent_count = 0
     inventor_count = 0
+    skipped = 0
 
-    for row in ws.iter_rows(min_row=2, values_only=True):
+    for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
         data = dict(zip(headers, row))
         pub_number = str(data.get("publication_number", "")).strip()
         if not pub_number:
+            logger.warning("Row %d: empty publication_number, skipping. Row data: %s", row_idx, data)
+            skipped += 1
             continue
 
-        patent = UnifiedPatent(
-            project_id=project_id,
-            publication_number=pub_number,
-            patent_no_numeric=normalize_patent_number(pub_number),
-            publication_date=parse_date(data.get("publication_date")),
-            title=str(data.get("title", "")).strip(),
-            grant_number=str(data.get("grant_number", "")).strip(),
-            assignee_current=str(data.get("assignee_current", "")).strip() or None,
-            assignee_original=str(data.get("assignee_original", "")).strip() or None,
-            assignee_parent=str(data.get("assignee_parent", "")).strip() or None,
-            application_date=parse_date(data.get("application_date")),
-            priority_date=parse_date(data.get("priority_date")),
-            publication_status=str(data.get("publication_status", "")).strip() or None,
-            publication_type=str(data.get("publication_type", "")).strip() or None,
-            country=str(data.get("country", "")).strip() or None,
-        )
-        session.add(patent)
-        session.flush()
-        patent_count += 1
+        try:
+            patent = UnifiedPatent(
+                project_id=project_id,
+                publication_number=pub_number,
+                patent_no_numeric=normalize_patent_number(pub_number),
+                publication_date=parse_date(data.get("publication_date")),
+                title=str(data.get("title", "")).strip(),
+                grant_number=str(data.get("grant_number", "")).strip(),
+                assignee_current=str(data.get("assignee_current", "")).strip() or None,
+                assignee_original=str(data.get("assignee_original", "")).strip() or None,
+                assignee_parent=str(data.get("assignee_parent", "")).strip() or None,
+                application_date=parse_date(data.get("application_date")),
+                priority_date=parse_date(data.get("priority_date")),
+                publication_status=str(data.get("publication_status", "")).strip() or None,
+                publication_type=str(data.get("publication_type", "")).strip() or None,
+                country=str(data.get("country", "")).strip() or None,
+            )
+            session.add(patent)
+            session.flush()
+            patent_count += 1
+        except Exception:
+            logger.exception("Row %d: failed to create unified patent. pub_number='%s', data=%s", row_idx, pub_number, data)
+            raise
 
         # Split inventors by pipe
         inventors_raw = str(data.get("inventors", "")).strip()
@@ -195,5 +235,6 @@ def import_unified(session: Session, project_id: int, file_path: str) -> dict:
                     session.add(inv)
                     inventor_count += 1
 
+    logger.info("unified import complete: %d patents, %d inventors, %d rows skipped", patent_count, inventor_count, skipped)
     session.commit()
     return {"patents_imported": patent_count, "inventors_imported": inventor_count}
