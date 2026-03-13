@@ -5,7 +5,7 @@ import { api } from '../api'
 import StatusBadge from '../components/StatusBadge'
 import FieldPicker from '../components/FieldPicker'
 import InventorAligner from '../components/InventorAligner'
-import { ArrowLeft, Save, CheckCircle, Loader2 } from 'lucide-react'
+import { ArrowLeft, Save, CheckCircle, Loader2, ExternalLink } from 'lucide-react'
 
 export default function ReconciliationDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -137,9 +137,23 @@ export default function ReconciliationDetailPage() {
         <div className="flex items-center justify-between">
           <div>
             <span className="text-xs text-gray-500 uppercase tracking-wide font-medium">Patent</span>
-            <h2 className="text-lg font-bold text-gray-900 font-mono mt-0.5">
-              {db?.patent_no || uni?.publication_number}
-            </h2>
+            <div className="flex items-center gap-2 mt-0.5">
+              <h2 className="text-lg font-bold text-gray-900 font-mono m-0">
+                {db?.patent_no || uni?.publication_number}
+              </h2>
+              {db?.patent_no && (
+                <a
+                  href={`https://patents.google.com/patent/${db.patent_no.replace(/[\s-]/g, '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 no-underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Google Patents
+                </a>
+              )}
+            </div>
             {db?.asset_name && (
               <div className="text-xs text-gray-500 mt-1">Asset: {db.asset_name}</div>
             )}
