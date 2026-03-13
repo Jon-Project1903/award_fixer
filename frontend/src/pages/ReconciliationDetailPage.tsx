@@ -104,6 +104,9 @@ export default function ReconciliationDetailPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reconciliation', crossrefId] })
+      queryClient.invalidateQueries({ queryKey: ['reconciliations'] })
+      queryClient.invalidateQueries({ queryKey: ['project'] })
+      navigate(`/projects/${data!.project_id}${returnSearch ? `?${returnSearch}` : ''}`)
     },
   })
 
