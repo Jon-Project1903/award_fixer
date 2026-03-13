@@ -7,7 +7,8 @@ from models import (
     PatentCrossRef, DbSourcePatent, DbSourceInventor,
     UnifiedPatent, UnifiedInventor, ReconciliationChoice,
 )
-from services.matching_service import run_matching, align_inventors
+from pydantic import BaseModel
+from services.matching_service import run_matching, align_inventors, score_title, score_inventor_lists
 
 router = APIRouter(tags=["reconciliation"])
 
@@ -45,6 +46,8 @@ def list_reconciliations(
             "inventor_count_unified": cr.inventor_count_unified,
             "title_score": cr.title_score,
             "date_match": cr.date_match,
+            "db_source_patent_id": cr.db_source_patent_id,
+            "unified_patent_id": cr.unified_patent_id,
         })
     return results
 
@@ -184,6 +187,104 @@ def save_choices(crossref_id: int, choices: list[dict], session: Session = Depen
 
     session.commit()
     return {"ok": True, "count": len(choices)}
+
+
+class MergeRequest(BaseModel):
+    db_crossref_id: int
+    uni_crossref_id: int
+    final_patent_no: str
+
+
+@router.post("/api/projects/{project_id}/merge")
+def merge_crossrefs(project_id: int, req: MergeRequest, session: Session = Depends(get_session)):
+    """Merge a db-only crossref and a unified-only crossref into a single matched crossref."""
+    db_cr = session.get(PatentCrossRef, req.db_crossref_id)
+    uni_cr = session.get(PatentCrossRef, req.uni_crossref_id)
+    if not db_cr or not uni_cr:
+        raise HTTPException(status_code=404, detail="One or both crossrefs not found")
+    if db_cr.project_id != project_id or uni_cr.project_id != project_id:
+        raise HTTPException(status_code=400, detail="Crossrefs don't belong to this project")
+    if not db_cr.db_source_patent_id or db_cr.unified_patent_id:
+        raise HTTPException(status_code=400, detail="First crossref must be db-source only")
+    if not uni_cr.unified_patent_id or uni_cr.db_source_patent_id:
+        raise HTTPException(status_code=400, detail="Second crossref must be unified only")
+
+    db_pat = session.get(DbSourcePatent, db_cr.db_source_patent_id)
+    uni_pat = session.get(UnifiedPatent, uni_cr.unified_patent_id)
+
+    # Update the patent_no_numeric on both to match via the user-chosen number
+    from services.import_service import normalize_patent_number
+    normalized = normalize_patent_number(req.final_patent_no)
+    db_pat.patent_no_numeric = normalized
+    uni_pat.patent_no_numeric = normalized
+    session.add(db_pat)
+    session.add(uni_pat)
+
+    # Compute scores for the new pair
+    db_inventors = session.exec(
+        select(DbSourceInventor).where(DbSourceInventor.db_source_patent_id == db_pat.id)
+    ).all()
+    uni_inventors = session.exec(
+        select(UnifiedInventor).where(UnifiedInventor.unified_patent_id == uni_pat.id)
+    ).all()
+
+    t_score = score_title(db_pat.title, uni_pat.title)
+    d_match = db_pat.issue_date == uni_pat.publication_date
+    db_names = [inv.legal_name for inv in db_inventors]
+    uni_names = [inv.raw_name for inv in uni_inventors]
+    i_score = score_inventor_lists(db_names, uni_names)
+    inv_count_db = len(db_inventors)
+    inv_count_uni = len(uni_inventors)
+    match_score = t_score * 0.3 + (1.0 if d_match else 0.0) * 0.2 + i_score * 0.5
+
+    notes_parts = []
+    notes_parts.append(f"Manually merged (patent no: {req.final_patent_no})")
+    if t_score < 1.0:
+        db_title = db_pat.title.strip()
+        uni_title = uni_pat.title.strip()
+        if db_title.lower() == uni_title.lower():
+            notes_parts.append(f"Title case mismatch")
+        else:
+            notes_parts.append(f"Title mismatch (score {t_score:.2f})")
+    if not d_match:
+        notes_parts.append("Date mismatch")
+    if inv_count_db != inv_count_uni:
+        notes_parts.append(f"Inventor count differs ({inv_count_db} vs {inv_count_uni})")
+    if i_score < 1.0:
+        notes_parts.append(f"Inventor name mismatch (score {i_score:.2f})")
+
+    # Delete old choices for both crossrefs
+    for cr_id in [db_cr.id, uni_cr.id]:
+        old_choices = session.exec(
+            select(ReconciliationChoice).where(ReconciliationChoice.crossref_id == cr_id)
+        ).all()
+        for ch in old_choices:
+            session.delete(ch)
+
+    # Delete both old crossrefs
+    session.delete(db_cr)
+    session.delete(uni_cr)
+    session.flush()
+
+    # Create new merged crossref
+    new_cr = PatentCrossRef(
+        project_id=project_id,
+        db_source_patent_id=db_pat.id,
+        unified_patent_id=uni_pat.id,
+        status="Flagged",
+        match_score=round(match_score, 3),
+        title_score=round(t_score, 3),
+        date_match=d_match,
+        inventor_score=round(i_score, 3),
+        inventor_count_db=inv_count_db,
+        inventor_count_unified=inv_count_uni,
+        notes="; ".join(notes_parts),
+    )
+    session.add(new_cr)
+    session.commit()
+    session.refresh(new_cr)
+
+    return {"ok": True, "new_crossref_id": new_cr.id}
 
 
 @router.put("/api/reconciliations/{crossref_id}/resolve")

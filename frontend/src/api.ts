@@ -66,6 +66,13 @@ export const api = {
   resolveReconciliation: (id: number) =>
     fetch(`${BASE}/reconciliations/${id}/resolve`, { method: 'PUT' }).then(r => json<any>(r)),
 
+  mergeCrossrefs: (projectId: number, dbCrossrefId: number, uniCrossrefId: number, finalPatentNo: string) =>
+    fetch(`${BASE}/projects/${projectId}/merge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ db_crossref_id: dbCrossrefId, uni_crossref_id: uniCrossrefId, final_patent_no: finalPatentNo }),
+    }).then(r => json<any>(r)),
+
   // Export
   exportUrl: (projectId: number) => `${BASE}/projects/${projectId}/export`,
 }
