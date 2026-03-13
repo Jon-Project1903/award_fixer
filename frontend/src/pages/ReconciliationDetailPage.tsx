@@ -113,24 +113,56 @@ export default function ReconciliationDetailPage() {
   const uni = data.unified
 
   return (
-    <div className="max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-6">
-        <button
-          onClick={() => navigate(`/projects/${data.project_id}`)}
-          className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 cursor-pointer border-0 bg-transparent"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Project
-        </button>
-        <div className="flex-1" />
-        <StatusBadge status={data.status} resolved={data.resolved} />
-        {data.match_score != null && (
-          <span className="text-sm text-gray-500">
-            Score: {Math.round(data.match_score * 100)}%
-          </span>
-        )}
+    <div>
+      {/* Sticky top bar */}
+      <div className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur-sm border-b border-gray-200 -mx-6 px-6 py-3 mb-6">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => navigate(`/projects/${data.project_id}`)}
+            className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 cursor-pointer border-0 bg-transparent"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Project
+          </button>
+
+          <div className="flex items-center gap-3">
+            <StatusBadge status={data.status} resolved={data.resolved} />
+            {data.match_score != null && (
+              <span className="text-sm text-gray-500">
+                Score: {Math.round(data.match_score * 100)}%
+              </span>
+            )}
+            <button
+              onClick={() => saveMutation.mutate()}
+              disabled={saveMutation.isPending}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors cursor-pointer border-0"
+            >
+              {saveMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+              Save
+            </button>
+            {!data.resolved && (
+              <button
+                onClick={() => resolveMutation.mutate()}
+                disabled={resolveMutation.isPending}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors cursor-pointer border-0"
+              >
+                {resolveMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CheckCircle className="w-4 h-4" />
+                )}
+                Mark Resolved
+              </button>
+            )}
+          </div>
+        </div>
       </div>
+
+      <div className="max-w-4xl mx-auto">
 
       {/* Patent Number Header */}
       <div className="bg-white rounded-xl border border-gray-200 p-5 mb-4 shadow-sm">
@@ -217,41 +249,12 @@ export default function ReconciliationDetailPage() {
         />
       </div>
 
-      {/* Actions */}
-      <div className="flex gap-3 justify-end pb-8">
-        <button
-          onClick={() => saveMutation.mutate()}
-          disabled={saveMutation.isPending}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors cursor-pointer border-0"
-        >
-          {saveMutation.isPending ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Save className="w-4 h-4" />
-          )}
-          Save
-        </button>
-        {!data.resolved && (
-          <button
-            onClick={() => resolveMutation.mutate()}
-            disabled={resolveMutation.isPending}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors cursor-pointer border-0"
-          >
-            {resolveMutation.isPending ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <CheckCircle className="w-4 h-4" />
-            )}
-            Mark Resolved
-          </button>
-        )}
-      </div>
-
       {saveMutation.isSuccess && (
         <div className="fixed bottom-6 right-6 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg text-sm animate-pulse">
           Saved
         </div>
       )}
+      </div>
     </div>
   )
 }
