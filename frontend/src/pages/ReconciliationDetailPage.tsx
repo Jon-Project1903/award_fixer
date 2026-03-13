@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api'
 import StatusBadge from '../components/StatusBadge'
@@ -11,6 +11,8 @@ export default function ReconciliationDetailPage() {
   const { id } = useParams<{ id: string }>()
   const crossrefId = Number(id)
   const navigate = useNavigate()
+  const location = useLocation()
+  const returnSearch = (location.state as any)?.returnSearch || ''
   const queryClient = useQueryClient()
 
   const { data, isLoading } = useQuery({
@@ -118,7 +120,7 @@ export default function ReconciliationDetailPage() {
       <div className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur-sm border-b border-gray-200 -mx-6 px-6 py-3 mb-6">
         <div className="flex items-center justify-between">
           <button
-            onClick={() => navigate(`/projects/${data.project_id}`)}
+            onClick={() => navigate(`/projects/${data.project_id}${returnSearch ? `?${returnSearch}` : ''}`)}
             className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 cursor-pointer border-0 bg-transparent"
           >
             <ArrowLeft className="w-4 h-4" />

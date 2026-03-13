@@ -282,7 +282,7 @@ export default function ProjectDetailPage() {
                 return (
                   <tr
                     key={rec.id}
-                    onClick={() => navigate(`/reconciliations/${rec.id}`)}
+                    onClick={() => navigate(`/reconciliations/${rec.id}`, { state: { returnSearch: searchParams.toString() } })}
                     className={`cursor-pointer transition-colors ${isSelected ? 'bg-purple-50 hover:bg-purple-100' : 'hover:bg-blue-50'}`}
                   >
                     <td className="px-2 py-3 text-center">
