@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api'
 import FileUpload from '../components/FileUpload'
@@ -14,19 +14,33 @@ export default function ProjectDetailPage() {
   const projectId = Number(id)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [statusFilter, setStatusFilter] = useState<string>('')
-  const [sortField, setSortField] = useState<SortField | null>(null)
-  const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const statusFilter = searchParams.get('status') || ''
+  const sortField = (searchParams.get('sort') as SortField) || null
+  const sortDir = (searchParams.get('dir') as SortDir) || 'asc'
+
+  const updateParams = (updates: Record<string, string | null>) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      for (const [k, v] of Object.entries(updates)) {
+        if (v) next.set(k, v)
+        else next.delete(k)
+      }
+      return next
+    }, { replace: true })
+  }
+
+  const setStatusFilter = (v: string) => updateParams({ status: v || null })
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [mergeModal, setMergeModal] = useState<{ dbRec: any; uniRec: any } | null>(null)
   const [mergePatentNo, setMergePatentNo] = useState('')
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
-      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+      updateParams({ dir: sortDir === 'asc' ? 'desc' : 'asc' })
     } else {
-      setSortField(field)
-      setSortDir('asc')
+      updateParams({ sort: field, dir: 'asc' })
     }
   }
 
