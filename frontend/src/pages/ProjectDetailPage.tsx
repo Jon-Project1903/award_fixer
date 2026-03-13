@@ -1,10 +1,13 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api'
 import FileUpload from '../components/FileUpload'
 import StatusBadge from '../components/StatusBadge'
-import { Download, RefreshCw, Loader2, CheckCircle } from 'lucide-react'
+import { Download, RefreshCw, Loader2, CheckCircle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+
+type SortField = 'patent_no' | 'status' | 'match_score'
+type SortDir = 'asc' | 'desc'
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -12,6 +15,24 @@ export default function ProjectDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [statusFilter, setStatusFilter] = useState<string>('')
+  const [sortField, setSortField] = useState<SortField | null>(null)
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
+
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortDir('asc')
+    }
+  }
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-40" />
+    return sortDir === 'asc'
+      ? <ArrowUp className="w-3 h-3 ml-1" />
+      : <ArrowDown className="w-3 h-3 ml-1" />
+  }
 
   const { data: project } = useQuery({
     queryKey: ['project', projectId],
@@ -38,6 +59,24 @@ export default function ProjectDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['project', projectId] })
     },
   })
+
+  const sortedReconciliations = useMemo(() => {
+    if (!sortField) return reconciliations
+    const statusOrder: Record<string, number> = { 'Flagged': 0, 'Passed Auto Review': 1 }
+    return [...reconciliations].sort((a: any, b: any) => {
+      let cmp = 0
+      if (sortField === 'status') {
+        const aResolved = a.resolved ? 2 : (statusOrder[a.status] ?? 1)
+        const bResolved = b.resolved ? 2 : (statusOrder[b.status] ?? 1)
+        cmp = aResolved - bResolved
+      } else if (sortField === 'match_score') {
+        cmp = (a.match_score ?? -1) - (b.match_score ?? -1)
+      } else if (sortField === 'patent_no') {
+        cmp = (a.patent_no || '').localeCompare(b.patent_no || '')
+      }
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [reconciliations, sortField, sortDir])
 
   const handleDbUpload = useCallback(async (file: File) => {
     return await api.uploadDbSource(projectId, file)
@@ -139,17 +178,23 @@ export default function ProjectDetailPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Patent No.</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 cursor-pointer select-none" onClick={() => toggleSort('patent_no')}>
+                  <span className="inline-flex items-center">Patent No.<SortIcon field="patent_no" /></span>
+                </th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Title</th>
-                <th className="text-center px-4 py-3 font-medium text-gray-600">Status</th>
-                <th className="text-center px-4 py-3 font-medium text-gray-600">Score</th>
+                <th className="text-center px-4 py-3 font-medium text-gray-600 cursor-pointer select-none" onClick={() => toggleSort('status')}>
+                  <span className="inline-flex items-center justify-center">Status<SortIcon field="status" /></span>
+                </th>
+                <th className="text-center px-4 py-3 font-medium text-gray-600 cursor-pointer select-none" onClick={() => toggleSort('match_score')}>
+                  <span className="inline-flex items-center justify-center">Score<SortIcon field="match_score" /></span>
+                </th>
                 <th className="text-center px-4 py-3 font-medium text-gray-600">Inventors (DB/Uni)</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Notes</th>
                 <th className="w-10 px-2 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {reconciliations.map((rec: any) => (
+              {sortedReconciliations.map((rec: any) => (
                 <tr
                   key={rec.id}
                   onClick={() => navigate(`/reconciliations/${rec.id}`)}

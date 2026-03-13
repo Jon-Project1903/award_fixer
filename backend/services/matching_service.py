@@ -145,16 +145,21 @@ def run_matching(session: Session, project_id: int) -> dict:
             match_score = t_score * 0.3 + (1.0 if d_match else 0.0) * 0.2 + i_score * 0.5
 
             notes_parts = []
-            if t_score < 0.95:
-                notes_parts.append(f"Title mismatch (score {t_score:.2f})")
+            if t_score < 1.0:
+                db_title = db_pat.title.strip()
+                uni_title = uni_pat.title.strip()
+                if db_title.lower() == uni_title.lower():
+                    notes_parts.append(f"Title case mismatch — DB: \"{db_title}\" vs Unified: \"{uni_title}\"")
+                else:
+                    notes_parts.append(f"Title mismatch (score {t_score:.2f}) — DB: \"{db_title}\" vs Unified: \"{uni_title}\"")
             if not d_match:
                 notes_parts.append("Date mismatch")
             if inv_count_db != inv_count_uni:
                 notes_parts.append(f"Inventor count differs ({inv_count_db} vs {inv_count_uni})")
-            if i_score < 0.85:
+            if i_score < 1.0:
                 notes_parts.append(f"Inventor name mismatch (score {i_score:.2f})")
 
-            auto_pass = match_score >= 0.85 and d_match and inv_count_db == inv_count_uni
+            auto_pass = match_score >= 1.0 and d_match and inv_count_db == inv_count_uni
             status = "Passed Auto Review" if auto_pass else "Flagged"
 
             crossref = PatentCrossRef(
