@@ -41,8 +41,10 @@ def generate_physical_awards(session: Session, project_id: int) -> dict:
         ).all()
 
         for inv in inventors:
-            # Skip opt-outs
+            # Skip opt-outs and termed employees
             if inv.award_type and inv.award_type.lower() == "opt-out":
+                continue
+            if inv.employment_status and inv.employment_status.lower() == "termed":
                 continue
 
             award = PhysicalAward(

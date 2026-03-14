@@ -26,6 +26,7 @@ export default function DataInputTab({ projectId }: { projectId: number }) {
             accept=".csv"
             onUpload={(file) => api.uploadDbSource(projectId, file).then(res => {
               queryClient.invalidateQueries({ queryKey: ['award-costs', projectId] })
+              queryClient.invalidateQueries({ queryKey: ['tax-rates', projectId] })
               return res
             })}
           />

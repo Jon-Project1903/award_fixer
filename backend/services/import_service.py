@@ -13,7 +13,7 @@ from models import (
     DbSourcePatent, DbSourceInventor,
     UnifiedPatent, UnifiedInventor,
     PatentCrossRef, ReconciliationChoice,
-    InventorAttendance, AwardCost,
+    InventorAttendance, AwardCost, TaxRate,
 )
 
 
@@ -194,9 +194,27 @@ def import_db_source(session: Session, project_id: int, file_path: str) -> dict:
             session.add(AwardCost(project_id=project_id, award_type=at, cost=0.0))
             costs_created += 1
 
+    # Auto-create TaxRate rows for new work-state jurisdictions
+    seen_states: set[str] = set()
+    for group_rows in groups.values():
+        for row in group_rows:
+            ws = row.get("Inventor: Work State", "").strip()
+            if ws:
+                seen_states.add(ws)
+
+    existing_rates = session.exec(
+        select(TaxRate).where(TaxRate.project_id == project_id)
+    ).all()
+    existing_keys = {r.lookup_key for r in existing_rates}
+    tax_rates_created = 0
+    for state in sorted(seen_states):
+        if state not in existing_keys:
+            session.add(TaxRate(project_id=project_id, jurisdiction=state, lookup_key=state, tax_percent=0.0))
+            tax_rates_created += 1
+
     session.commit()
-    logger.info("db_source import complete: %d patents, %d inventors, %d new award cost rows", patent_count, inventor_count, costs_created)
-    return {"patents_imported": patent_count, "inventors_imported": inventor_count, "award_costs_created": costs_created}
+    logger.info("db_source import complete: %d patents, %d inventors, %d new award cost rows, %d new tax rate rows", patent_count, inventor_count, costs_created, tax_rates_created)
+    return {"patents_imported": patent_count, "inventors_imported": inventor_count, "award_costs_created": costs_created, "tax_rates_created": tax_rates_created}
 
 
 def import_unified(session: Session, project_id: int, file_path: str) -> dict:
