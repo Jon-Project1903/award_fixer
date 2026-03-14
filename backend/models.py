@@ -28,6 +28,12 @@ class DbSourceInventor(SQLModel, table=True):
     work_country_iso: Optional[str] = None
     address: Optional[str] = None
     award_type: Optional[str] = None
+    work_city: Optional[str] = None
+    work_state: Optional[str] = None
+    work_email: Optional[str] = None
+    preferred_name: Optional[str] = None
+    employment_status: Optional[str] = None
+    employee_id: Optional[str] = None
 
 
 class UnifiedPatent(SQLModel, table=True):
@@ -79,3 +85,44 @@ class ReconciliationChoice(SQLModel, table=True):
     chosen_source: str  # "db_source" | "unified" | "manual"
     chosen_value: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class InventorAttendance(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    project_id: int = Field(foreign_key="project.id")
+    employee_id: str
+    email: str
+    attendance_status: str = "Unknown"  # "Unknown" | "In-Person" | "Not Attending"
+
+
+class PhysicalAward(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    project_id: int = Field(foreign_key="project.id")
+    employee_id: str
+    patent_number: str
+    award_type: str
+    inventor_name: str
+    work_state: Optional[str] = None
+
+
+class AwardCost(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    project_id: int = Field(foreign_key="project.id")
+    award_type: str
+    cost: float
+
+
+class TaxRate(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    project_id: int = Field(foreign_key="project.id")
+    jurisdiction: str
+    lookup_key: str  # e.g. state code like "CA"
+    tax_percent: float
+
+
+class ProgramMgmtFee(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    project_id: int = Field(foreign_key="project.id")
+    description: str
+    quantity: int = 1
+    cost: float

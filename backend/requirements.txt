@@ -3,4 +3,5 @@ uvicorn[standard]
 sqlmodel
 openpyxl
 rapidfuzz
+scipy
 python-multipart

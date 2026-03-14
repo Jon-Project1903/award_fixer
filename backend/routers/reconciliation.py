@@ -77,6 +77,12 @@ def get_reconciliation_detail(crossref_id: int, session: Session = Depends(get_s
                     "office_location_country": inv.office_location_country,
                     "work_country_iso": inv.work_country_iso,
                     "address": inv.address,
+                    "work_city": inv.work_city,
+                    "work_state": inv.work_state,
+                    "work_email": inv.work_email,
+                    "preferred_name": inv.preferred_name,
+                    "employment_status": inv.employment_status,
+                    "employee_id": inv.employee_id,
                 }
                 for inv in db_inventors
             ],

@@ -13,6 +13,7 @@ from models import (
     DbSourcePatent, DbSourceInventor,
     UnifiedPatent, UnifiedInventor,
     PatentCrossRef, ReconciliationChoice,
+    InventorAttendance,
 )
 
 
@@ -162,6 +163,12 @@ def import_db_source(session: Session, project_id: int, file_path: str) -> dict:
                     work_country_iso=row.get("Inventor: Work Country ISO code", "").strip() or None,
                     address=row.get("Inventor: Address", "").strip() or None,
                     award_type=row.get("Inventor: Award Type", "").strip() or None,
+                    work_city=row.get("Inventor: Work City", "").strip() or None,
+                    work_state=row.get("Inventor: Work State", "").strip() or None,
+                    work_email=row.get("Inventor: Work Email", "").strip() or None,
+                    preferred_name=row.get("Inventor: Preferred Name", "").strip() or None,
+                    employment_status=row.get("Inventor: Employment Status", "").strip() or None,
+                    employee_id=row.get("Inventor: Employee ID", "").strip() or None,
                 )
                 session.add(inventor)
                 inventor_count += 1
@@ -238,3 +245,43 @@ def import_unified(session: Session, project_id: int, file_path: str) -> dict:
     logger.info("unified import complete: %d patents, %d inventors, %d rows skipped", patent_count, inventor_count, skipped)
     session.commit()
     return {"patents_imported": patent_count, "inventors_imported": inventor_count}
+
+
+def import_attendance(session: Session, project_id: int, file_path: str) -> dict:
+    """Import attendance CSV. Columns: employee_id, email. Sets status to Unknown."""
+    # Clear existing attendance for project
+    existing = session.exec(
+        select(InventorAttendance).where(InventorAttendance.project_id == project_id)
+    ).all()
+    for row in existing:
+        session.delete(row)
+    session.flush()
+
+    # Read CSV
+    for encoding in ("utf-8-sig", "latin-1"):
+        try:
+            with open(file_path, "r", encoding=encoding) as f:
+                reader = csv.DictReader(f)
+                rows = list(reader)
+            break
+        except UnicodeDecodeError:
+            continue
+
+    count = 0
+    for row in rows:
+        emp_id = row.get("employee_id", "").strip()
+        email = row.get("email", "").strip()
+        if not emp_id and not email:
+            continue
+        att = InventorAttendance(
+            project_id=project_id,
+            employee_id=emp_id,
+            email=email,
+            attendance_status="Unknown",
+        )
+        session.add(att)
+        count += 1
+
+    session.commit()
+    logger.info("attendance import complete: %d records", count)
+    return {"imported": count}

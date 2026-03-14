@@ -1,4 +1,6 @@
+import numpy as np
 from rapidfuzz import fuzz
+from scipy.optimize import linear_sum_assignment
 from sqlmodel import Session, select
 
 from models import (
@@ -30,54 +32,88 @@ def score_inventor_lists(db_names: list[str], uni_names: list[str]) -> float:
     return sum(scores) / len(scores)
 
 
+def _db_inventor_dict(db_inv: DbSourceInventor, uni_inv=None, score: float = 0.0) -> dict:
+    """Build an alignment entry for a db inventor."""
+    return {
+        "db_inventor_id": db_inv.id,
+        "db_inventor_name": db_inv.legal_name,
+        "db_inventor_award_type": db_inv.award_type,
+        "db_inventor_country": db_inv.work_country_iso,
+        "db_inventor_employee_id": db_inv.employee_id,
+        "db_inventor_work_state": db_inv.work_state,
+        "unified_inventor_id": uni_inv.id if uni_inv else None,
+        "unified_inventor_name": uni_inv.raw_name if uni_inv else None,
+        "score": round(score, 3),
+    }
+
+
 def align_inventors(
     db_inventors: list[DbSourceInventor],
     uni_inventors: list[UnifiedInventor],
 ) -> list[dict]:
-    """Greedy best-match alignment of inventor lists."""
-    alignment = []
-    used_uni = set()
+    """Optimal alignment of inventor lists using the Hungarian algorithm."""
+    if not db_inventors and not uni_inventors:
+        return []
 
-    for db_inv in db_inventors:
-        best_score = 0.0
-        best_uni = None
-        for ui in uni_inventors:
-            if ui.id in used_uni:
-                continue
-            score = fuzz.token_sort_ratio(db_inv.legal_name.lower(), ui.raw_name.lower()) / 100.0
-            if score > best_score:
-                best_score = score
-                best_uni = ui
-        if best_uni and best_score > 0.3:
-            used_uni.add(best_uni.id)
-            alignment.append({
-                "db_inventor_id": db_inv.id,
-                "db_inventor_name": db_inv.legal_name,
-                "db_inventor_award_type": db_inv.award_type,
-                "db_inventor_country": db_inv.work_country_iso,
-                "unified_inventor_id": best_uni.id,
-                "unified_inventor_name": best_uni.raw_name,
-                "score": round(best_score, 3),
-            })
+    if not db_inventors:
+        return [{
+            "db_inventor_id": None,
+            "db_inventor_name": None,
+            "db_inventor_award_type": None,
+            "db_inventor_country": None,
+            "db_inventor_employee_id": None,
+            "db_inventor_work_state": None,
+            "unified_inventor_id": ui.id,
+            "unified_inventor_name": ui.raw_name,
+            "score": 0.0,
+        } for ui in uni_inventors]
+
+    if not uni_inventors:
+        return [_db_inventor_dict(db_inv) for db_inv in db_inventors]
+
+    # Build score matrix
+    n_db = len(db_inventors)
+    n_uni = len(uni_inventors)
+    score_matrix = np.zeros((n_db, n_uni))
+    for i, db_inv in enumerate(db_inventors):
+        for j, ui in enumerate(uni_inventors):
+            score_matrix[i, j] = fuzz.token_sort_ratio(
+                db_inv.legal_name.lower(), ui.raw_name.lower()
+            ) / 100.0
+
+    # Hungarian algorithm (minimizes cost, so negate scores)
+    row_ind, col_ind = linear_sum_assignment(-score_matrix)
+
+    alignment = []
+    matched_db = set()
+    matched_uni = set()
+
+    for r, c in zip(row_ind, col_ind):
+        score = score_matrix[r, c]
+        if score > 0.3:
+            alignment.append(_db_inventor_dict(db_inventors[r], uni_inventors[c], score))
+            matched_db.add(r)
+            matched_uni.add(c)
         else:
-            alignment.append({
-                "db_inventor_id": db_inv.id,
-                "db_inventor_name": db_inv.legal_name,
-                "db_inventor_award_type": db_inv.award_type,
-                "db_inventor_country": db_inv.work_country_iso,
-                "unified_inventor_id": None,
-                "unified_inventor_name": None,
-                "score": 0.0,
-            })
+            # Score too low — treat as unmatched
+            alignment.append(_db_inventor_dict(db_inventors[r]))
+            matched_db.add(r)
+
+    # Unmatched db inventors
+    for i, db_inv in enumerate(db_inventors):
+        if i not in matched_db:
+            alignment.append(_db_inventor_dict(db_inv))
 
     # Unmatched unified inventors
-    for ui in uni_inventors:
-        if ui.id not in used_uni:
+    for j, ui in enumerate(uni_inventors):
+        if j not in matched_uni:
             alignment.append({
                 "db_inventor_id": None,
                 "db_inventor_name": None,
                 "db_inventor_award_type": None,
                 "db_inventor_country": None,
+                "db_inventor_employee_id": None,
+                "db_inventor_work_state": None,
                 "unified_inventor_id": ui.id,
                 "unified_inventor_name": ui.raw_name,
                 "score": 0.0,

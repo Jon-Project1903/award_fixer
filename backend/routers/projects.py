@@ -62,8 +62,11 @@ def delete_project(project_id: int, session: Session = Depends(get_session)):
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Project not found")
     # Cascade delete all related records
-    from models import DbSourcePatent, DbSourceInventor, UnifiedPatent, UnifiedInventor, ReconciliationChoice
-    from sqlmodel import col
+    from models import (
+        DbSourcePatent, DbSourceInventor, UnifiedPatent, UnifiedInventor,
+        ReconciliationChoice, InventorAttendance, PhysicalAward,
+        AwardCost, TaxRate, ProgramMgmtFee,
+    )
 
     crossrefs = session.exec(select(PatentCrossRef).where(PatentCrossRef.project_id == project_id)).all()
     for cr in crossrefs:
@@ -85,6 +88,12 @@ def delete_project(project_id: int, session: Session = Depends(get_session)):
         for inv in inventors:
             session.delete(inv)
         session.delete(up)
+
+    # Delete new table data
+    for model in [InventorAttendance, PhysicalAward, AwardCost, TaxRate, ProgramMgmtFee]:
+        rows = session.exec(select(model).where(model.project_id == project_id)).all()
+        for row in rows:
+            session.delete(row)
 
     session.delete(project)
     session.commit()
