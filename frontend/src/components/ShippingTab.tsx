@@ -2,11 +2,20 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api'
 import FileUpload from './FileUpload'
-import { Package, ChevronDown, ChevronRight, Trash2, AlertTriangle, MapPin } from 'lucide-react'
+import { Package, ChevronDown, ChevronRight, Trash2, AlertTriangle, MapPin, Plus, Check, X, Pencil } from 'lucide-react'
+
+const EMPTY_ADDR = {
+  city: '', state: '', country: '', company: '', ship_to: '', email: '',
+  address_1: '', address_2: '', address_3: '', phone: '', zip_code: '', taxable: false,
+}
 
 export default function ShippingTab({ projectId }: { projectId: number }) {
   const queryClient = useQueryClient()
   const [expandedAddr, setExpandedAddr] = useState<number | null>(null)
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editData, setEditData] = useState<any>({})
+  const [adding, setAdding] = useState(false)
+  const [newAddr, setNewAddr] = useState<any>({ ...EMPTY_ADDR })
 
   const { data: addresses = [] } = useQuery({
     queryKey: ['shipping-addresses', projectId],
@@ -18,17 +27,30 @@ export default function ShippingTab({ projectId }: { projectId: number }) {
     queryFn: () => api.getShipping(projectId),
   })
 
-  const deleteAddrMut = useMutation({
-    mutationFn: (id: number) => api.deleteShippingAddress(projectId, id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['shipping-addresses', projectId] })
-      queryClient.invalidateQueries({ queryKey: ['shipping', projectId] })
-    },
-  })
-
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ['shipping-addresses', projectId] })
     queryClient.invalidateQueries({ queryKey: ['shipping', projectId] })
+  }
+
+  const createMut = useMutation({
+    mutationFn: (data: any) => api.createShippingAddress(projectId, data),
+    onSuccess: () => { invalidateAll(); setAdding(false); setNewAddr({ ...EMPTY_ADDR }) },
+  })
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) => api.updateShippingAddress(projectId, id, data),
+    onSuccess: () => { invalidateAll(); setEditingId(null) },
+  })
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => api.deleteShippingAddress(projectId, id),
+    onSuccess: invalidateAll,
+  })
+
+  const startEdit = (addr: any) => {
+    setEditingId(addr.id)
+    setEditData({ ...addr })
+    setExpandedAddr(addr.id)
   }
 
   const counts = {
@@ -62,7 +84,15 @@ export default function ShippingTab({ projectId }: { projectId: number }) {
     <div className="space-y-6">
       {/* Upload Addresses */}
       <div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-3">Shipping Addresses</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold text-gray-900">Shipping Addresses</h2>
+          <button
+            onClick={() => { setAdding(true); setNewAddr({ ...EMPTY_ADDR }) }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 cursor-pointer border-0 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" /> Add Address
+          </button>
+        </div>
         <div className="max-w-md mb-4">
           <FileUpload
             label="Shipping Addresses CSV"
@@ -74,8 +104,8 @@ export default function ShippingTab({ projectId }: { projectId: number }) {
           />
         </div>
 
-        {/* Collapsible Address List */}
-        {addresses.length > 0 && (
+        {/* Address Table */}
+        {(addresses.length > 0 || adding) && (
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <table className="w-full text-sm">
               <thead>
@@ -86,22 +116,37 @@ export default function ShippingTab({ projectId }: { projectId: number }) {
                   <th className="text-left px-4 py-2.5 font-medium text-gray-600">Country</th>
                   <th className="text-left px-4 py-2.5 font-medium text-gray-600">Ship To</th>
                   <th className="text-left px-4 py-2.5 font-medium text-gray-600">Company</th>
-                  <th className="w-10 px-2 py-2.5"></th>
+                  <th className="w-20 px-2 py-2.5"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {addresses.map((addr: any) => {
                   const isExpanded = expandedAddr === addr.id
+                  const isEditing = editingId === addr.id
                   return (
                     <AddressRow
                       key={addr.id}
                       addr={addr}
                       isExpanded={isExpanded}
+                      isEditing={isEditing}
+                      editData={editData}
+                      onEditChange={setEditData}
                       onToggle={() => setExpandedAddr(isExpanded ? null : addr.id)}
-                      onDelete={() => deleteAddrMut.mutate(addr.id)}
+                      onEdit={() => startEdit(addr)}
+                      onSave={() => updateMut.mutate({ id: addr.id, data: editData })}
+                      onCancel={() => setEditingId(null)}
+                      onDelete={() => deleteMut.mutate(addr.id)}
                     />
                   )
                 })}
+                {adding && (
+                  <AddingRow
+                    data={newAddr}
+                    onChange={setNewAddr}
+                    onSave={() => createMut.mutate(newAddr)}
+                    onCancel={() => setAdding(false)}
+                  />
+                )}
               </tbody>
             </table>
           </div>
@@ -156,17 +201,80 @@ export default function ShippingTab({ projectId }: { projectId: number }) {
   )
 }
 
+const inputCls = "w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+
 function AddressRow({
-  addr,
-  isExpanded,
-  onToggle,
-  onDelete,
+  addr, isExpanded, isEditing, editData, onEditChange,
+  onToggle, onEdit, onSave, onCancel, onDelete,
 }: {
-  addr: any
-  isExpanded: boolean
-  onToggle: () => void
-  onDelete: () => void
+  addr: any; isExpanded: boolean; isEditing: boolean
+  editData: any; onEditChange: (d: any) => void
+  onToggle: () => void; onEdit: () => void
+  onSave: () => void; onCancel: () => void; onDelete: () => void
 }) {
+  const ed = (field: string, value: any) => onEditChange({ ...editData, [field]: value })
+  const handleKey = (e: React.KeyboardEvent) => { if (e.key === 'Enter') onSave() }
+
+  if (isEditing) {
+    return (
+      <>
+        <tr className="bg-blue-50/50">
+          <td className="px-2 py-2.5 text-center text-gray-400">
+            <ChevronDown className="w-4 h-4 mx-auto" />
+          </td>
+          <td className="px-4 py-2.5"><input className={inputCls} value={editData.city || ''} onChange={e => ed('city', e.target.value)} onKeyDown={handleKey} /></td>
+          <td className="px-4 py-2.5"><input className={inputCls} value={editData.state || ''} onChange={e => ed('state', e.target.value)} onKeyDown={handleKey} /></td>
+          <td className="px-4 py-2.5"><input className={inputCls} value={editData.country || ''} onChange={e => ed('country', e.target.value)} onKeyDown={handleKey} /></td>
+          <td className="px-4 py-2.5"><input className={inputCls} value={editData.ship_to || ''} onChange={e => ed('ship_to', e.target.value)} onKeyDown={handleKey} /></td>
+          <td className="px-4 py-2.5"><input className={inputCls} value={editData.company || ''} onChange={e => ed('company', e.target.value)} onKeyDown={handleKey} /></td>
+          <td className="px-2 py-2.5">
+            <span className="inline-flex gap-1">
+              <button onClick={onSave} className="p-1 text-green-600 hover:bg-green-50 rounded cursor-pointer border-0 bg-transparent"><Check className="w-4 h-4" /></button>
+              <button onClick={onCancel} className="p-1 text-gray-400 hover:bg-gray-100 rounded cursor-pointer border-0 bg-transparent"><X className="w-4 h-4" /></button>
+            </span>
+          </td>
+        </tr>
+        <tr>
+          <td colSpan={7} className="px-0 py-0">
+            <div className="bg-blue-50/30 border-t border-gray-200 px-8 py-3 grid grid-cols-3 gap-4 text-xs">
+              <div>
+                <div className="text-gray-500 mb-0.5">Address 1</div>
+                <input className={inputCls} value={editData.address_1 || ''} onChange={e => ed('address_1', e.target.value)} onKeyDown={handleKey} />
+              </div>
+              <div>
+                <div className="text-gray-500 mb-0.5">Address 2</div>
+                <input className={inputCls} value={editData.address_2 || ''} onChange={e => ed('address_2', e.target.value)} onKeyDown={handleKey} />
+              </div>
+              <div>
+                <div className="text-gray-500 mb-0.5">Address 3</div>
+                <input className={inputCls} value={editData.address_3 || ''} onChange={e => ed('address_3', e.target.value)} onKeyDown={handleKey} />
+              </div>
+              <div>
+                <div className="text-gray-500 mb-0.5">Zip Code</div>
+                <input className={inputCls} value={editData.zip_code || ''} onChange={e => ed('zip_code', e.target.value)} onKeyDown={handleKey} />
+              </div>
+              <div>
+                <div className="text-gray-500 mb-0.5">Phone</div>
+                <input className={inputCls} value={editData.phone || ''} onChange={e => ed('phone', e.target.value)} onKeyDown={handleKey} />
+              </div>
+              <div>
+                <div className="text-gray-500 mb-0.5">Email</div>
+                <input className={inputCls} value={editData.email || ''} onChange={e => ed('email', e.target.value)} onKeyDown={handleKey} />
+              </div>
+              <div>
+                <div className="text-gray-500 mb-0.5">Taxable</div>
+                <label className="inline-flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={editData.taxable || false} onChange={e => ed('taxable', e.target.checked)} className="rounded" />
+                  <span className="text-sm">Yes</span>
+                </label>
+              </div>
+            </div>
+          </td>
+        </tr>
+      </>
+    )
+  }
+
   return (
     <>
       <tr onClick={onToggle} className="hover:bg-gray-50 cursor-pointer transition-colors">
@@ -181,12 +289,20 @@ function AddressRow({
         <td className="px-4 py-2.5 text-gray-600">{addr.ship_to || '-'}</td>
         <td className="px-4 py-2.5 text-gray-600 text-xs">{addr.company || '-'}</td>
         <td className="px-2 py-2.5">
-          <button
-            onClick={(e) => { e.stopPropagation(); onDelete() }}
-            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer border-0 bg-transparent"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
+          <span className="inline-flex gap-1">
+            <button
+              onClick={(e) => { e.stopPropagation(); onEdit() }}
+              className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer border-0 bg-transparent"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete() }}
+              className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer border-0 bg-transparent"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </span>
         </td>
       </tr>
       {isExpanded && (
@@ -219,6 +335,72 @@ function AddressRow({
           </td>
         </tr>
       )}
+    </>
+  )
+}
+
+function AddingRow({
+  data, onChange, onSave, onCancel,
+}: {
+  data: any; onChange: (d: any) => void; onSave: () => void; onCancel: () => void
+}) {
+  const ed = (field: string, value: any) => onChange({ ...data, [field]: value })
+  const handleKey = (e: React.KeyboardEvent) => { if (e.key === 'Enter') onSave() }
+  return (
+    <>
+      <tr className="bg-blue-50/50">
+        <td className="px-2 py-2.5 text-center text-gray-400">
+          <ChevronDown className="w-4 h-4 mx-auto" />
+        </td>
+        <td className="px-4 py-2.5"><input className={inputCls} value={data.city} onChange={e => ed('city', e.target.value)} onKeyDown={handleKey} placeholder="City" /></td>
+        <td className="px-4 py-2.5"><input className={inputCls} value={data.state} onChange={e => ed('state', e.target.value)} onKeyDown={handleKey} placeholder="State" /></td>
+        <td className="px-4 py-2.5"><input className={inputCls} value={data.country} onChange={e => ed('country', e.target.value)} onKeyDown={handleKey} placeholder="Country" /></td>
+        <td className="px-4 py-2.5"><input className={inputCls} value={data.ship_to} onChange={e => ed('ship_to', e.target.value)} onKeyDown={handleKey} placeholder="Ship To" /></td>
+        <td className="px-4 py-2.5"><input className={inputCls} value={data.company} onChange={e => ed('company', e.target.value)} onKeyDown={handleKey} placeholder="Company" /></td>
+        <td className="px-2 py-2.5">
+          <span className="inline-flex gap-1">
+            <button onClick={onSave} className="p-1 text-green-600 hover:bg-green-50 rounded cursor-pointer border-0 bg-transparent"><Check className="w-4 h-4" /></button>
+            <button onClick={onCancel} className="p-1 text-gray-400 hover:bg-gray-100 rounded cursor-pointer border-0 bg-transparent"><X className="w-4 h-4" /></button>
+          </span>
+        </td>
+      </tr>
+      <tr>
+        <td colSpan={7} className="px-0 py-0">
+          <div className="bg-blue-50/30 border-t border-gray-200 px-8 py-3 grid grid-cols-3 gap-4 text-xs">
+            <div>
+              <div className="text-gray-500 mb-0.5">Address 1</div>
+              <input className={inputCls} value={data.address_1} onChange={e => ed('address_1', e.target.value)} onKeyDown={handleKey} placeholder="Address 1" />
+            </div>
+            <div>
+              <div className="text-gray-500 mb-0.5">Address 2</div>
+              <input className={inputCls} value={data.address_2} onChange={e => ed('address_2', e.target.value)} onKeyDown={handleKey} placeholder="Address 2" />
+            </div>
+            <div>
+              <div className="text-gray-500 mb-0.5">Address 3</div>
+              <input className={inputCls} value={data.address_3} onChange={e => ed('address_3', e.target.value)} onKeyDown={handleKey} placeholder="Address 3" />
+            </div>
+            <div>
+              <div className="text-gray-500 mb-0.5">Zip Code</div>
+              <input className={inputCls} value={data.zip_code} onChange={e => ed('zip_code', e.target.value)} onKeyDown={handleKey} placeholder="Zip Code" />
+            </div>
+            <div>
+              <div className="text-gray-500 mb-0.5">Phone</div>
+              <input className={inputCls} value={data.phone} onChange={e => ed('phone', e.target.value)} onKeyDown={handleKey} placeholder="Phone" />
+            </div>
+            <div>
+              <div className="text-gray-500 mb-0.5">Email</div>
+              <input className={inputCls} value={data.email} onChange={e => ed('email', e.target.value)} onKeyDown={handleKey} placeholder="Email" />
+            </div>
+            <div>
+              <div className="text-gray-500 mb-0.5">Taxable</div>
+              <label className="inline-flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={data.taxable} onChange={e => ed('taxable', e.target.checked)} className="rounded" />
+                <span className="text-sm">Yes</span>
+              </label>
+            </div>
+          </div>
+        </td>
+      </tr>
     </>
   )
 }

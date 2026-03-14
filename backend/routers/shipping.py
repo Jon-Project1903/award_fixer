@@ -164,6 +164,46 @@ def list_shipping_addresses(project_id: int, session: Session = Depends(get_sess
     ).all()
 
 
+@router.post("/{project_id}/shipping-addresses")
+def create_shipping_address(project_id: int, data: dict, session: Session = Depends(get_session)):
+    addr = ShippingAddress(
+        project_id=project_id,
+        company=data.get("company"),
+        ship_to=data.get("ship_to"),
+        email=data.get("email"),
+        address_1=data.get("address_1"),
+        address_2=data.get("address_2"),
+        address_3=data.get("address_3"),
+        phone=data.get("phone"),
+        city=data.get("city"),
+        state=data.get("state"),
+        zip_code=data.get("zip_code"),
+        country=data.get("country"),
+        taxable=data.get("taxable", False),
+    )
+    session.add(addr)
+    session.commit()
+    session.refresh(addr)
+    recompute_shipping(session, project_id)
+    return addr
+
+
+@router.put("/{project_id}/shipping-addresses/{address_id}")
+def update_shipping_address(project_id: int, address_id: int, data: dict, session: Session = Depends(get_session)):
+    addr = session.get(ShippingAddress, address_id)
+    if not addr or addr.project_id != project_id:
+        raise HTTPException(status_code=404, detail="Not found")
+    for field in ["company", "ship_to", "email", "address_1", "address_2", "address_3",
+                  "phone", "city", "state", "zip_code", "country", "taxable"]:
+        if field in data:
+            setattr(addr, field, data[field])
+    session.add(addr)
+    session.commit()
+    session.refresh(addr)
+    recompute_shipping(session, project_id)
+    return addr
+
+
 @router.delete("/{project_id}/shipping-addresses/{address_id}")
 def delete_shipping_address(project_id: int, address_id: int, session: Session = Depends(get_session)):
     addr = session.get(ShippingAddress, address_id)
@@ -171,6 +211,7 @@ def delete_shipping_address(project_id: int, address_id: int, session: Session =
         raise HTTPException(status_code=404, detail="Not found")
     session.delete(addr)
     session.commit()
+    recompute_shipping(session, project_id)
     return {"ok": True}
 
 

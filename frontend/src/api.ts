@@ -169,6 +169,14 @@ export const api = {
   },
   getShippingAddresses: (projectId: number) =>
     fetch(`${BASE}/projects/${projectId}/shipping-addresses`).then(r => json<any[]>(r)),
+  createShippingAddress: (projectId: number, data: any) =>
+    fetch(`${BASE}/projects/${projectId}/shipping-addresses`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    }).then(r => json<any>(r)),
+  updateShippingAddress: (projectId: number, addressId: number, data: any) =>
+    fetch(`${BASE}/projects/${projectId}/shipping-addresses/${addressId}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    }).then(r => json<any>(r)),
   deleteShippingAddress: (projectId: number, addressId: number) =>
     fetch(`${BASE}/projects/${projectId}/shipping-addresses/${addressId}`, { method: 'DELETE' }).then(r => json<any>(r)),
   getShipping: (projectId: number) =>

@@ -167,6 +167,7 @@ function CrudTable({
                         step={c.type === 'number' ? 'any' : undefined}
                         value={editData[c.key] ?? ''}
                         onChange={e => setEditData(d => ({ ...d, [c.key]: c.type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value }))}
+                        onKeyDown={e => { if (e.key === 'Enter') updateMut.mutate({ id: row.id, data: editData }) }}
                         className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                       />
                     ) : (
@@ -198,6 +199,7 @@ function CrudTable({
                       step={c.type === 'number' ? 'any' : undefined}
                       value={newData[c.key] ?? ''}
                       onChange={e => setNewData(d => ({ ...d, [c.key]: c.type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value }))}
+                      onKeyDown={e => { if (e.key === 'Enter') createMut.mutate(newData) }}
                       placeholder={c.label}
                       className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                     />
