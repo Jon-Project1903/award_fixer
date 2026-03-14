@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import create_db_and_tables
-from routers import projects, imports, reconciliation, export, costs, attendance, awards, inventors
+from routers import projects, imports, reconciliation, export, costs, attendance, awards, inventors, shipping
 
 app = FastAPI(title="PatentAwards API")
 
@@ -21,6 +21,7 @@ app.include_router(costs.router)
 app.include_router(attendance.router)
 app.include_router(awards.router)
 app.include_router(inventors.router)
+app.include_router(shipping.router)
 
 
 @app.on_event("startup")

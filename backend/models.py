@@ -127,3 +127,31 @@ class ProgramMgmtFee(SQLModel, table=True):
     description: str
     quantity: int = 1
     cost: float
+
+
+class ShippingAddress(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    project_id: int = Field(foreign_key="project.id")
+    company: Optional[str] = None
+    ship_to: Optional[str] = None
+    email: Optional[str] = None
+    address_1: Optional[str] = None
+    address_2: Optional[str] = None
+    address_3: Optional[str] = None
+    phone: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip_code: Optional[str] = None
+    country: Optional[str] = None
+    taxable: bool = False
+
+
+class InventorShipping(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    project_id: int = Field(foreign_key="project.id")
+    employee_id: str
+    inventor_name: str
+    work_city: Optional[str] = None
+    attendance_status: str = "Unknown"
+    shipping_type: str = "Unknown"  # "To the Event" | city name | "Unknown"
+    shipping_address_id: Optional[int] = Field(default=None, foreign_key="shippingaddress.id")

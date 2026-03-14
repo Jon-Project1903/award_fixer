@@ -5,14 +5,16 @@ import DataInputTab from '../components/DataInputTab'
 import ReconciliationTab from '../components/ReconciliationTab'
 import InventorsTab from '../components/InventorsTab'
 import AttendanceTab from '../components/AttendanceTab'
+import ShippingTab from '../components/ShippingTab'
 import CostsTab from '../components/CostsTab'
-import { Database, GitCompare, User2, Users, DollarSign } from 'lucide-react'
+import { Database, GitCompare, User2, Users, Package, DollarSign } from 'lucide-react'
 
 const TABS = [
   { key: 'data', label: 'Data Input', icon: Database },
   { key: 'reconciliation', label: 'Reconciliation', icon: GitCompare },
   { key: 'inventors', label: 'Inventors', icon: User2 },
   { key: 'attendance', label: 'Attendance', icon: Users },
+  { key: 'shipping', label: 'Shipping', icon: Package },
   { key: 'costs', label: 'Costs', icon: DollarSign },
 ] as const
 
@@ -88,6 +90,7 @@ export default function ProjectDetailPage() {
       {activeTab === 'reconciliation' && <ReconciliationTab projectId={projectId} />}
       {activeTab === 'inventors' && <InventorsTab projectId={projectId} />}
       {activeTab === 'attendance' && <AttendanceTab projectId={projectId} />}
+      {activeTab === 'shipping' && <ShippingTab projectId={projectId} />}
       {activeTab === 'costs' && <CostsTab projectId={projectId} />}
     </div>
   )

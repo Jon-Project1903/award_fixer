@@ -16,7 +16,10 @@ export default function AttendanceTab({ projectId }: { projectId: number }) {
   const updateMut = useMutation({
     mutationFn: ({ id, status }: { id: number; status: string }) =>
       api.updateAttendance(projectId, id, { attendance_status: status }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['attendance', projectId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['attendance', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['shipping', projectId] })
+    },
   })
 
   const populateMut = useMutation({

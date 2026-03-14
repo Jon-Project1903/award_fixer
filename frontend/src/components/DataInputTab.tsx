@@ -79,8 +79,8 @@ export default function DataInputTab({ projectId }: { projectId: number }) {
         updateFn={(id, data) => api.updateTaxRate(projectId, id, data)}
         deleteFn={(id) => api.deleteTaxRate(projectId, id)}
         columns={[
-          { key: 'jurisdiction', label: 'Jurisdiction', type: 'text' },
-          { key: 'lookup_key', label: 'State Code', type: 'text' },
+          { key: 'jurisdiction', label: 'City', type: 'text' },
+          { key: 'lookup_key', label: 'State', type: 'text' },
           { key: 'tax_percent', label: 'Tax %', type: 'number' },
         ]}
         emptyRow={{ jurisdiction: '', lookup_key: '', tax_percent: 0 }}

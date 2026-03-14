@@ -96,4 +96,9 @@ def update_attendance(
     session.add(att)
     session.commit()
     session.refresh(att)
+
+    # Recompute shipping after attendance change
+    from routers.shipping import recompute_shipping
+    recompute_shipping(session, project_id)
+
     return att

@@ -155,7 +155,7 @@ export default function CostsTab({ projectId }: { projectId: number }) {
       {/* PM Fees Editor */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-900">Program Management Fees</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Other Fees</h2>
           <button
             onClick={() => { setAddingFee(true); setNewFee({ description: '', quantity: 1, cost: 0 }) }}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 cursor-pointer border-0 transition-colors"
@@ -203,7 +203,7 @@ export default function CostsTab({ projectId }: { projectId: number }) {
                 </tr>
               )}
               {pmFees.length === 0 && !addingFee && (
-                <tr><td colSpan={5} className="px-4 py-6 text-center text-gray-400 text-sm">No PM fees added yet.</td></tr>
+                <tr><td colSpan={5} className="px-4 py-6 text-center text-gray-400 text-sm">No fees added yet.</td></tr>
               )}
             </tbody>
           </table>
@@ -263,7 +263,7 @@ export default function CostsTab({ projectId }: { projectId: number }) {
                   <td className="px-4 py-2.5" colSpan={3}>Subtotal incl. tax</td>
                   <td className="px-4 py-2.5 text-right">{fmt(summary.subtotal_with_tax)}</td>
                 </tr>
-                {/* PM Fees */}
+                {/* Other Fees */}
                 {summary.pm_fees.map((f: any) => (
                   <tr key={f.id} className="hover:bg-gray-50">
                     <td className="px-4 py-2.5">{f.description}</td>

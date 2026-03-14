@@ -65,7 +65,7 @@ def delete_project(project_id: int, session: Session = Depends(get_session)):
     from models import (
         DbSourcePatent, DbSourceInventor, UnifiedPatent, UnifiedInventor,
         ReconciliationChoice, InventorAttendance, PhysicalAward,
-        AwardCost, TaxRate, ProgramMgmtFee,
+        AwardCost, TaxRate, ProgramMgmtFee, ShippingAddress, InventorShipping,
     )
 
     crossrefs = session.exec(select(PatentCrossRef).where(PatentCrossRef.project_id == project_id)).all()
@@ -90,7 +90,7 @@ def delete_project(project_id: int, session: Session = Depends(get_session)):
         session.delete(up)
 
     # Delete new table data
-    for model in [InventorAttendance, PhysicalAward, AwardCost, TaxRate, ProgramMgmtFee]:
+    for model in [InventorAttendance, PhysicalAward, AwardCost, TaxRate, ProgramMgmtFee, ShippingAddress, InventorShipping]:
         rows = session.exec(select(model).where(model.project_id == project_id)).all()
         for row in rows:
             session.delete(row)

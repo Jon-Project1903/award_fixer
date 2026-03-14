@@ -158,4 +158,25 @@ export const api = {
   // Inventors
   getInventors: (projectId: number) =>
     fetch(`${BASE}/projects/${projectId}/inventors`).then(r => json<any[]>(r)),
+
+  // Shipping
+  uploadShippingAddresses: (projectId: number, file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return fetch(`${BASE}/projects/${projectId}/import/shipping-addresses`, {
+      method: 'POST', body: fd,
+    }).then(r => json<any>(r))
+  },
+  getShippingAddresses: (projectId: number) =>
+    fetch(`${BASE}/projects/${projectId}/shipping-addresses`).then(r => json<any[]>(r)),
+  deleteShippingAddress: (projectId: number, addressId: number) =>
+    fetch(`${BASE}/projects/${projectId}/shipping-addresses/${addressId}`, { method: 'DELETE' }).then(r => json<any>(r)),
+  getShipping: (projectId: number) =>
+    fetch(`${BASE}/projects/${projectId}/shipping`).then(r => json<any[]>(r)),
+  recomputeShipping: (projectId: number) =>
+    fetch(`${BASE}/projects/${projectId}/shipping/recompute`, { method: 'POST' }).then(r => json<any>(r)),
+  updateShipping: (projectId: number, shippingId: number, data: any) =>
+    fetch(`${BASE}/projects/${projectId}/shipping/${shippingId}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    }).then(r => json<any>(r)),
 }
