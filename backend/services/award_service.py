@@ -41,15 +41,13 @@ def generate_physical_awards(session: Session, project_id: int) -> dict:
         ).all()
 
         for inv in inventors:
-            # Skip opt-outs and inventors without employee_id
-            if not inv.employee_id:
-                continue
+            # Skip opt-outs
             if inv.award_type and inv.award_type.lower() == "opt-out":
                 continue
 
             award = PhysicalAward(
                 project_id=project_id,
-                employee_id=inv.employee_id,
+                employee_id=inv.employee_id or inv.legal_name,
                 patent_number=db_pat.patent_no,
                 award_type=inv.award_type or "Unknown",
                 inventor_name=inv.preferred_name or inv.legal_name,

@@ -132,6 +132,8 @@ export const api = {
     fetch(`${BASE}/projects/${projectId}/attendance/${attId}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
     }).then(r => json<any>(r)),
+  populateAttendanceFromInventors: (projectId: number) =>
+    fetch(`${BASE}/projects/${projectId}/attendance/populate-from-inventors`, { method: 'POST' }).then(r => json<any>(r)),
 
   // Physical Awards
   generateAwards: (projectId: number) =>
@@ -152,4 +154,8 @@ export const api = {
   // Cost Summary
   getCostSummary: (projectId: number) =>
     fetch(`${BASE}/projects/${projectId}/cost-summary`).then(r => json<any>(r)),
+
+  // Inventors
+  getInventors: (projectId: number) =>
+    fetch(`${BASE}/projects/${projectId}/inventors`).then(r => json<any[]>(r)),
 }

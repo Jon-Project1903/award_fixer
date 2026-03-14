@@ -24,7 +24,10 @@ export default function DataInputTab({ projectId }: { projectId: number }) {
           <FileUpload
             label="Database Source (CSV)"
             accept=".csv"
-            onUpload={(file) => api.uploadDbSource(projectId, file)}
+            onUpload={(file) => api.uploadDbSource(projectId, file).then(res => {
+              queryClient.invalidateQueries({ queryKey: ['award-costs', projectId] })
+              return res
+            })}
           />
           <FileUpload
             label="Unified Report (XLSX)"

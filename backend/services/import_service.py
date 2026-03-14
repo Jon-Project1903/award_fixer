@@ -13,7 +13,7 @@ from models import (
     DbSourcePatent, DbSourceInventor,
     UnifiedPatent, UnifiedInventor,
     PatentCrossRef, ReconciliationChoice,
-    InventorAttendance,
+    InventorAttendance, AwardCost,
 )
 
 
@@ -176,9 +176,27 @@ def import_db_source(session: Session, project_id: int, file_path: str) -> dict:
                 logger.exception("Failed to create inventor from row: %s", row)
                 raise
 
+    # Auto-create AwardCost rows for new award types
+    seen_award_types: set[str] = set()
+    for group_rows in groups.values():
+        for row in group_rows:
+            at = row.get("Inventor: Award Type", "").strip()
+            if at and at.lower() != "opt-out":
+                seen_award_types.add(at)
+
+    existing_costs = session.exec(
+        select(AwardCost).where(AwardCost.project_id == project_id)
+    ).all()
+    existing_types = {c.award_type for c in existing_costs}
+    costs_created = 0
+    for at in sorted(seen_award_types):
+        if at not in existing_types:
+            session.add(AwardCost(project_id=project_id, award_type=at, cost=0.0))
+            costs_created += 1
+
     session.commit()
-    logger.info("db_source import complete: %d patents, %d inventors", patent_count, inventor_count)
-    return {"patents_imported": patent_count, "inventors_imported": inventor_count}
+    logger.info("db_source import complete: %d patents, %d inventors, %d new award cost rows", patent_count, inventor_count, costs_created)
+    return {"patents_imported": patent_count, "inventors_imported": inventor_count, "award_costs_created": costs_created}
 
 
 def import_unified(session: Session, project_id: int, file_path: str) -> dict:

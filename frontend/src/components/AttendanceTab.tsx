@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api'
 import FileUpload from './FileUpload'
-import { Users } from 'lucide-react'
+import { Users, UserPlus, Loader2 } from 'lucide-react'
 
 const STATUS_OPTIONS = ['Unknown', 'In-Person', 'Not Attending'] as const
 
@@ -16,6 +16,11 @@ export default function AttendanceTab({ projectId }: { projectId: number }) {
   const updateMut = useMutation({
     mutationFn: ({ id, status }: { id: number; status: string }) =>
       api.updateAttendance(projectId, id, { attendance_status: status }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['attendance', projectId] }),
+  })
+
+  const populateMut = useMutation({
+    mutationFn: () => api.populateAttendanceFromInventors(projectId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['attendance', projectId] }),
   })
 
@@ -38,17 +43,32 @@ export default function AttendanceTab({ projectId }: { projectId: number }) {
       {/* Upload */}
       <div>
         <h2 className="text-lg font-semibold text-gray-900 mb-3">Import Attendance</h2>
-        <div className="max-w-md">
-          <FileUpload
-            label="Attendance CSV (employee_id, email)"
-            accept=".csv"
-            onUpload={(file) => {
-              return api.uploadAttendance(projectId, file).then(res => {
-                queryClient.invalidateQueries({ queryKey: ['attendance', projectId] })
-                return res
-              })
-            }}
-          />
+        <div className="flex gap-4 items-start">
+          <div className="max-w-md flex-1">
+            <FileUpload
+              label="Attendance CSV (employee_id, email)"
+              accept=".csv"
+              onUpload={(file) => {
+                return api.uploadAttendance(projectId, file).then(res => {
+                  queryClient.invalidateQueries({ queryKey: ['attendance', projectId] })
+                  return res
+                })
+              }}
+            />
+          </div>
+          <div className="pt-1">
+            <button
+              onClick={() => populateMut.mutate()}
+              disabled={populateMut.isPending}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors cursor-pointer border-0 whitespace-nowrap"
+            >
+              {populateMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+              Add All Inventors
+            </button>
+            {populateMut.data && (
+              <p className="text-xs text-gray-500 mt-1.5">{populateMut.data.added} added ({populateMut.data.total} total)</p>
+            )}
+          </div>
         </div>
       </div>
 
