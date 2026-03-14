@@ -103,6 +103,7 @@ class PhysicalAward(SQLModel, table=True):
     award_type: str
     inventor_name: str
     work_state: Optional[str] = None
+    work_city: Optional[str] = None
 
 
 class AwardCost(SQLModel, table=True):

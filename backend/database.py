@@ -15,6 +15,7 @@ _MIGRATIONS = [
     ("dbsourceinventor", "preferred_name", "VARCHAR"),
     ("dbsourceinventor", "employment_status", "VARCHAR"),
     ("dbsourceinventor", "employee_id", "VARCHAR"),
+    ("physicalaward", "work_city", "VARCHAR"),
 ]
 
 

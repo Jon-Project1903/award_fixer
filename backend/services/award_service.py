@@ -54,6 +54,7 @@ def generate_physical_awards(session: Session, project_id: int) -> dict:
                 award_type=inv.award_type or "Unknown",
                 inventor_name=inv.preferred_name or inv.legal_name,
                 work_state=inv.work_state,
+                work_city=inv.work_city,
             )
             session.add(award)
             awards.append(award)
@@ -106,9 +107,9 @@ def compute_cost_summary(session: Session, project_id: int) -> dict:
     tax_by_jurisdiction: dict[str, dict] = defaultdict(lambda: {"taxable_amount": 0.0, "tax": 0.0, "rate": 0.0})
     for a in awards:
         unit_cost = cost_by_type.get(a.award_type, 0.0)
-        state = (a.work_state or "").strip()
-        if state and state in tax_by_key:
-            rate_info = tax_by_key[state]
+        city = (a.work_city or "").strip()
+        if city and city in tax_by_key:
+            rate_info = tax_by_key[city]
             tax = unit_cost * (rate_info.tax_percent / 100.0)
             total_tax += tax
             entry = tax_by_jurisdiction[rate_info.jurisdiction]
