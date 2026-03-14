@@ -155,6 +155,9 @@ export const api = {
   getCostSummary: (projectId: number) =>
     fetch(`${BASE}/projects/${projectId}/cost-summary`).then(r => json<any>(r)),
 
+  // Report
+  getReportUrl: (projectId: number) => `${BASE}/projects/${projectId}/export/report`,
+
   // Inventors
   getInventors: (projectId: number) =>
     fetch(`${BASE}/projects/${projectId}/inventors`).then(r => json<any[]>(r)),

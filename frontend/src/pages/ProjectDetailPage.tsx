@@ -7,7 +7,8 @@ import InventorsTab from '../components/InventorsTab'
 import AttendanceTab from '../components/AttendanceTab'
 import ShippingTab from '../components/ShippingTab'
 import CostsTab from '../components/CostsTab'
-import { Database, GitCompare, User2, Users, Package, DollarSign } from 'lucide-react'
+import ReportTab from '../components/ReportTab'
+import { Database, GitCompare, User2, Users, Package, DollarSign, FileSpreadsheet } from 'lucide-react'
 
 const TABS = [
   { key: 'data', label: 'Data Input', icon: Database },
@@ -16,6 +17,7 @@ const TABS = [
   { key: 'attendance', label: 'Attendance', icon: Users },
   { key: 'shipping', label: 'Shipping', icon: Package },
   { key: 'costs', label: 'Costs', icon: DollarSign },
+  { key: 'report', label: 'Report', icon: FileSpreadsheet },
 ] as const
 
 type TabKey = typeof TABS[number]['key']
@@ -92,6 +94,7 @@ export default function ProjectDetailPage() {
       {activeTab === 'attendance' && <AttendanceTab projectId={projectId} />}
       {activeTab === 'shipping' && <ShippingTab projectId={projectId} />}
       {activeTab === 'costs' && <CostsTab projectId={projectId} />}
+      {activeTab === 'report' && <ReportTab projectId={projectId} />}
     </div>
   )
 }

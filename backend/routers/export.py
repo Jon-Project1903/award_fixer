@@ -125,3 +125,19 @@ def export_csv(project_id: int, session: Session = Depends(get_session)):
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{project.name}_export.csv"'},
     )
+
+
+@router.get("/{project_id}/export/report")
+def export_report(project_id: int, session: Session = Depends(get_session)):
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    from services.report_service import generate_report
+    buf = generate_report(session, project_id)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{project.name}_report.xlsx"'},
+    )
