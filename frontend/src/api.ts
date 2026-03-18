@@ -176,6 +176,12 @@ export const api = {
   getInventors: (projectId: number) =>
     fetch(`${BASE}/projects/${projectId}/inventors`).then(r => json<any[]>(r)),
 
+  updateInventorAwardType: (projectId: number, inventorKey: string, awardType: string) =>
+    fetch(`${BASE}/projects/${projectId}/inventors/award-type`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ inventor_key: inventorKey, award_type: awardType }),
+    }).then(r => json<any>(r)),
+
   // Shipping
   uploadShippingAddresses: (projectId: number, file: File) => {
     const fd = new FormData()

@@ -1,30 +1,93 @@
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useState, useMemo } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api'
-import { ChevronDown, ChevronRight, ExternalLink, User2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, ExternalLink, User2, ArrowUpDown, ArrowUp, ArrowDown, Search, Pencil, Check, X } from 'lucide-react'
+
+type SortDir = 'asc' | 'desc'
 
 export default function InventorsTab({ projectId }: { projectId: number }) {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
+
+  // Sort state
+  const [sortKey, setSortKey] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
+
+  // Filter state
+  const [filters, setFilters] = useState<Record<string, string>>({})
+  const setFilter = (key: string, value: string) => setFilters(prev => ({ ...prev, [key]: value }))
+
+  const toggleSort = (key: string) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('asc') }
+  }
 
   const { data: inventors = [], isLoading } = useQuery({
     queryKey: ['inventors', projectId],
     queryFn: () => api.getInventors(projectId),
   })
 
-  const filtered = search.trim()
-    ? inventors.filter((inv: any) => {
-        const q = search.toLowerCase()
-        return (
-          (inv.legal_name || '').toLowerCase().includes(q) ||
-          (inv.preferred_name || '').toLowerCase().includes(q) ||
-          (inv.employee_id || '').toLowerCase().includes(q) ||
-          (inv.work_email || '').toLowerCase().includes(q)
-        )
+  const processed = useMemo(() => {
+    let result = inventors
+
+    // Apply filters
+    const f = filters
+    if (f.legal_name) {
+      const q = f.legal_name.toLowerCase()
+      result = result.filter((inv: any) =>
+        (inv.legal_name || '').toLowerCase().includes(q) ||
+        (inv.preferred_name || '').toLowerCase().includes(q)
+      )
+    }
+    if (f.employee_id) {
+      const q = f.employee_id.toLowerCase()
+      result = result.filter((inv: any) => (inv.employee_id || '').toLowerCase().includes(q))
+    }
+    if (f.work_email) {
+      const q = f.work_email.toLowerCase()
+      result = result.filter((inv: any) => (inv.work_email || '').toLowerCase().includes(q))
+    }
+    if (f.location) {
+      const q = f.location.toLowerCase()
+      result = result.filter((inv: any) => {
+        const loc = [inv.work_city, inv.work_state, inv.work_country_iso].filter(Boolean).join(', ').toLowerCase()
+        return loc.includes(q)
       })
-    : inventors
+    }
+    if (f.employment_status) {
+      const q = f.employment_status.toLowerCase()
+      result = result.filter((inv: any) => (inv.employment_status || '').toLowerCase().includes(q))
+    }
+    if (f.award_types) {
+      const q = f.award_types.toLowerCase()
+      result = result.filter((inv: any) => (inv.award_types || []).some((at: string) => at.toLowerCase().includes(q)))
+    }
+
+    // Apply sort
+    if (sortKey) {
+      result = [...result].sort((a: any, b: any) => {
+        let av: string, bv: string
+        if (sortKey === 'location') {
+          av = [a.work_city, a.work_state, a.work_country_iso].filter(Boolean).join(', ').toLowerCase()
+          bv = [b.work_city, b.work_state, b.work_country_iso].filter(Boolean).join(', ').toLowerCase()
+        } else if (sortKey === 'award_types') {
+          av = (a.award_types || []).join(', ').toLowerCase()
+          bv = (b.award_types || []).join(', ').toLowerCase()
+        } else if (sortKey === 'patent_count') {
+          return sortDir === 'asc' ? (a.patent_count - b.patent_count) : (b.patent_count - a.patent_count)
+        } else {
+          av = (a[sortKey] ?? '').toString().toLowerCase()
+          bv = (b[sortKey] ?? '').toString().toLowerCase()
+        }
+        const cmp = av.localeCompare(bv)
+        return sortDir === 'asc' ? cmp : -cmp
+      })
+    }
+
+    return result
+  }, [inventors, sortKey, sortDir, filters])
 
   const toggleExpand = (key: string) => {
     setExpandedKey(prev => (prev === key ? null : key))
@@ -53,6 +116,21 @@ export default function InventorsTab({ projectId }: { projectId: number }) {
     inv.employment_status && inv.employment_status.toLowerCase() === 'termed'
   ).length
 
+  const SortIcon = ({ field }: { field: string }) => {
+    if (sortKey !== field) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-40" />
+    return sortDir === 'asc' ? <ArrowUp className="w-3 h-3 ml-1" /> : <ArrowDown className="w-3 h-3 ml-1" />
+  }
+
+  const columns: { key: string; label: string; filterable?: boolean }[] = [
+    { key: 'legal_name', label: 'Name', filterable: true },
+    { key: 'employee_id', label: 'Employee ID', filterable: true },
+    { key: 'work_email', label: 'Email', filterable: true },
+    { key: 'location', label: 'Location', filterable: true },
+    { key: 'employment_status', label: 'Status', filterable: true },
+    { key: 'award_types', label: 'Award Types', filterable: true },
+    { key: 'patent_count', label: 'Patents' },
+  ]
+
   return (
     <div className="space-y-4">
       {/* Stats */}
@@ -67,50 +145,61 @@ export default function InventorsTab({ projectId }: { projectId: number }) {
             <span className="text-sm text-red-600 ml-2">Termed</span>
           </div>
         )}
-      </div>
-
-      {/* Search */}
-      <div className="flex items-center gap-3">
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search by name, ID, or email..."
-          className="w-80 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-        />
-        <span className="text-sm text-gray-500">
-          {filtered.length} inventor{filtered.length !== 1 ? 's' : ''}
-          {search && ` matching "${search}"`}
-        </span>
+        {processed.length !== inventors.length && (
+          <span className="text-xs text-gray-400">Showing {processed.length} of {inventors.length}</span>
+        )}
       </div>
 
       {/* Inventors Table */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <table className="w-full text-sm">
-          <thead>
+          <thead className="sticky top-0 z-1">
             <tr className="bg-gray-50 border-b border-gray-200">
               <th className="w-10 px-2 py-3"></th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Employee ID</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Email</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Location</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Award Types</th>
-              <th className="text-center px-4 py-3 font-medium text-gray-600">Patents</th>
+              {columns.map(c => (
+                <th
+                  key={c.key}
+                  className="text-left px-4 py-3 font-medium text-gray-600 cursor-pointer select-none"
+                  onClick={() => toggleSort(c.key)}
+                >
+                  <span className="inline-flex items-center">{c.label}<SortIcon field={c.key} /></span>
+                </th>
+              ))}
+            </tr>
+            <tr className="bg-gray-50 border-b border-gray-200">
+              <th className="px-2 py-1.5"></th>
+              {columns.map(c => (
+                <th key={c.key} className="px-4 py-1.5">
+                  {c.filterable ? (
+                    <div className="relative">
+                      <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="text"
+                        value={filters[c.key] || ''}
+                        onChange={e => setFilter(c.key, e.target.value)}
+                        placeholder="Filter..."
+                        className="w-full pl-7 pr-2 py-1 border border-gray-200 rounded text-xs font-normal focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                      />
+                    </div>
+                  ) : null}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {filtered.map((inv: any) => {
+            {processed.map((inv: any) => {
               const key = dedup(inv)
               const isExpanded = expandedKey === key
               return (
                 <InventorRow
                   key={key}
                   inv={inv}
+                  projectId={projectId}
                   isExpanded={isExpanded}
                   onToggle={() => toggleExpand(key)}
                   onNavigate={(crossrefId: number) => navigate(`/reconciliations/${crossrefId}`)}
                   googlePatentUrl={googlePatentUrl}
+                  queryClient={queryClient}
                 />
               )
             })}
@@ -123,26 +212,44 @@ export default function InventorsTab({ projectId }: { projectId: number }) {
 
 function InventorRow({
   inv,
+  projectId,
   isExpanded,
   onToggle,
   onNavigate,
   googlePatentUrl,
+  queryClient,
 }: {
   inv: any
+  projectId: number
   isExpanded: boolean
   onToggle: () => void
   onNavigate: (crossrefId: number) => void
   googlePatentUrl: (patentNo: string) => string
+  queryClient: any
 }) {
   const location = [inv.work_city, inv.work_state, inv.work_country_iso]
     .filter(Boolean)
     .join(', ')
 
-  const statusColor = inv.employment_status === 'Active'
-    ? 'text-green-700 bg-green-50'
-    : inv.employment_status
-      ? 'text-gray-600 bg-gray-100'
-      : ''
+  const [editingAwardType, setEditingAwardType] = useState(false)
+  const [newAwardType, setNewAwardType] = useState('')
+
+  const updateAwardTypeMut = useMutation({
+    mutationFn: (awardType: string) =>
+      api.updateInventorAwardType(projectId, inv.employee_id || inv.legal_name, awardType),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inventors', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['physical-awards', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['award-stats', projectId] })
+      setEditingAwardType(false)
+    },
+  })
+
+  const startEditAwardType = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setNewAwardType(inv.award_types.join(', '))
+    setEditingAwardType(true)
+  }
 
   return (
     <>
@@ -180,20 +287,44 @@ function InventorRow({
           )}
         </td>
         <td className="px-4 py-3">
-          <div className="flex flex-wrap gap-1">
-            {inv.award_types.map((at: string) => (
-              <span
-                key={at}
-                className={`inline-block px-2 py-0.5 text-xs rounded-full ${
-                  at.toLowerCase() === 'opt-out'
-                    ? 'bg-red-100 text-red-700'
-                    : 'bg-blue-100 text-blue-700'
-                }`}
+          {editingAwardType ? (
+            <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+              <input
+                type="text"
+                value={newAwardType}
+                onChange={e => setNewAwardType(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') updateAwardTypeMut.mutate(newAwardType.trim()) }}
+                className="w-24 px-2 py-0.5 border border-blue-300 rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none"
+                autoFocus
+              />
+              <button onClick={() => updateAwardTypeMut.mutate(newAwardType.trim())} className="p-0.5 text-green-600 hover:bg-green-50 rounded cursor-pointer border-0 bg-transparent"><Check className="w-3.5 h-3.5" /></button>
+              <button onClick={() => setEditingAwardType(false)} className="p-0.5 text-gray-400 hover:bg-gray-100 rounded cursor-pointer border-0 bg-transparent"><X className="w-3.5 h-3.5" /></button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 group">
+              <div className="flex flex-wrap gap-1">
+                {inv.award_types.map((at: string) => (
+                  <span
+                    key={at}
+                    className={`inline-block px-2 py-0.5 text-xs rounded-full ${
+                      at.toLowerCase() === 'opt-out'
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-blue-100 text-blue-700'
+                    }`}
+                  >
+                    {at}
+                  </span>
+                ))}
+              </div>
+              <button
+                onClick={startEditAwardType}
+                className="p-0.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer border-0 bg-transparent opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Edit award type"
               >
-                {at}
-              </span>
-            ))}
-          </div>
+                <Pencil className="w-3 h-3" />
+              </button>
+            </div>
+          )}
         </td>
         <td className="px-4 py-3 text-center">
           <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 text-gray-700 text-xs font-medium">
@@ -207,11 +338,13 @@ function InventorRow({
         <tr>
           <td colSpan={8} className="px-0 py-0">
             <div className="bg-gray-50 border-t border-b border-gray-200">
-              {/* Inventor detail fields */}
               <div className="px-8 py-4 grid grid-cols-4 gap-4 text-xs border-b border-gray-200">
                 <DetailField label="Employee ID" value={inv.employee_id} />
                 <DetailField label="Email" value={inv.work_email} />
-                <DetailField label="Employment Status" value={inv.employment_status} badgeClass={statusColor} />
+                <DetailField label="Employment Status" value={inv.employment_status} badgeClass={
+                  inv.employment_status === 'Active' ? 'text-green-700 bg-green-50'
+                  : inv.employment_status ? 'text-gray-600 bg-gray-100' : ''
+                } />
                 <DetailField label="Address" value={inv.address} />
                 <DetailField label="City" value={inv.work_city} />
                 <DetailField label="State" value={inv.work_state} />
@@ -219,7 +352,6 @@ function InventorRow({
                 <DetailField label="Office Country" value={inv.office_location_country} />
               </div>
 
-              {/* Patent list */}
               <div className="px-8 py-3">
                 <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
                   Patents ({inv.patents.length})

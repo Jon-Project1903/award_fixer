@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from collections import defaultdict
 
 from database import get_session
-from models import DbSourcePatent, DbSourceInventor, PatentCrossRef
+from models import DbSourcePatent, DbSourceInventor, PatentCrossRef, PhysicalAward
 
 router = APIRouter(prefix="/api/projects", tags=["inventors"])
 
@@ -72,3 +72,50 @@ def list_inventors(project_id: int, session: Session = Depends(get_session)):
 
     results.sort(key=lambda r: (r["legal_name"] or "").lower())
     return results
+
+
+@router.put("/{project_id}/inventors/award-type")
+def update_inventor_award_type(project_id: int, data: dict, session: Session = Depends(get_session)):
+    """Update award_type for all DbSourceInventor records matching an inventor, and sync to PhysicalAward."""
+    inventor_key = data.get("inventor_key", "").strip()
+    new_award_type = data.get("award_type", "").strip()
+    if not inventor_key or not new_award_type:
+        raise HTTPException(status_code=400, detail="inventor_key and award_type required")
+
+    # Find all crossrefs for this project
+    crossrefs = session.exec(
+        select(PatentCrossRef).where(
+            PatentCrossRef.project_id == project_id,
+            PatentCrossRef.db_source_patent_id != None,
+        )
+    ).all()
+
+    updated = 0
+    for cr in crossrefs:
+        inventors = session.exec(
+            select(DbSourceInventor).where(
+                DbSourceInventor.db_source_patent_id == cr.db_source_patent_id
+            )
+        ).all()
+        for inv in inventors:
+            emp_id = (inv.employee_id or "").strip()
+            dedup_key = emp_id if emp_id else inv.legal_name.strip().lower()
+            if dedup_key == inventor_key:
+                inv.award_type = new_award_type
+                session.add(inv)
+                updated += 1
+
+    # Also update PhysicalAward records for this inventor
+    awards = session.exec(
+        select(PhysicalAward).where(PhysicalAward.project_id == project_id)
+    ).all()
+    awards_updated = 0
+    for a in awards:
+        emp_key = (a.employee_id or "").strip()
+        if emp_key == inventor_key or a.inventor_name.strip().lower() == inventor_key:
+            a.award_type = new_award_type
+            session.add(a)
+            awards_updated += 1
+
+    session.commit()
+    return {"ok": True, "inventors_updated": updated, "awards_updated": awards_updated}
