@@ -8,7 +8,7 @@ from sqlmodel import Session, select
 from models import (
     PhysicalAward, AwardCost, TaxRate, ProgramMgmtFee,
     ShippingAddress, InventorShipping,
-    PatentCrossRef, DbSourcePatent, ReconciliationChoice,
+    PatentCrossRef, DbSourcePatent, DbSourceInventor, UnifiedPatent, ReconciliationChoice,
 )
 from services.award_service import compute_cost_summary
 
@@ -208,29 +208,60 @@ def _load_awards_data(session, project_id):
     ).all()
     addr_by_id = {a.id: a for a in addresses}
 
-    # Build patent_number -> reconciled title lookup
+    # Build reconciled data lookups from crossrefs + choices
     crossrefs = session.exec(
         select(PatentCrossRef).where(
             PatentCrossRef.project_id == project_id,
             PatentCrossRef.db_source_patent_id != None,
         )
     ).all()
-    title_by_patent_no = {}
+    title_by_patent_no: dict[str, str] = {}
+    issue_date_by_patent_no: dict[str, str] = {}
+    # Maps (patent_no, employee_id_or_name) -> reconciled inventor name
+    inventor_name_lookup: dict[tuple[str, str], str] = {}
+
     for cr in crossrefs:
         db_pat = session.get(DbSourcePatent, cr.db_source_patent_id)
         if not db_pat:
             continue
-        # Check for a reconciled title choice
-        title_choice = session.exec(
-            select(ReconciliationChoice).where(
-                ReconciliationChoice.crossref_id == cr.id,
-                ReconciliationChoice.field_name == "title",
-            )
-        ).first()
-        if title_choice:
-            title_by_patent_no[db_pat.patent_no] = title_choice.chosen_value
+
+        choices = session.exec(
+            select(ReconciliationChoice).where(ReconciliationChoice.crossref_id == cr.id)
+        ).all()
+        choices_map = {c.field_name: c.chosen_value for c in choices}
+
+        # Load unified patent if linked
+        uni_pat = session.get(UnifiedPatent, cr.unified_patent_id) if cr.unified_patent_id else None
+
+        # Reconciled title (always ALL CAPS) — prefer choice, then unified, then db
+        if "title" in choices_map:
+            title_by_patent_no[db_pat.patent_no] = choices_map["title"].upper()
+        elif uni_pat and uni_pat.title:
+            title_by_patent_no[db_pat.patent_no] = uni_pat.title.upper()
         else:
-            title_by_patent_no[db_pat.patent_no] = db_pat.title
+            title_by_patent_no[db_pat.patent_no] = db_pat.title.upper()
+
+        # Reconciled issue date — prefer choice, then unified, then db
+        if "issue_date" in choices_map:
+            issue_date_by_patent_no[db_pat.patent_no] = choices_map["issue_date"]
+        elif uni_pat and uni_pat.publication_date:
+            issue_date_by_patent_no[db_pat.patent_no] = uni_pat.publication_date.isoformat()
+        elif db_pat.issue_date:
+            issue_date_by_patent_no[db_pat.patent_no] = db_pat.issue_date.isoformat()
+
+        # Reconciled inventor names
+        db_inventors = session.exec(
+            select(DbSourceInventor).where(DbSourceInventor.db_source_patent_id == db_pat.id)
+        ).all()
+        for inv in db_inventors:
+            name_field = f"inventor_{inv.id}_name"
+            if name_field in choices_map:
+                # Key by employee_id and by original names so we can match PhysicalAward rows
+                if inv.employee_id:
+                    inventor_name_lookup[(db_pat.patent_no, inv.employee_id)] = choices_map[name_field]
+                inventor_name_lookup[(db_pat.patent_no, inv.legal_name)] = choices_map[name_field]
+                if inv.preferred_name:
+                    inventor_name_lookup[(db_pat.patent_no, inv.preferred_name)] = choices_map[name_field]
 
     rows = []
     for a in awards:
@@ -256,11 +287,19 @@ def _load_awards_data(session, project_id):
         else:
             delivery = "Unknown"
 
+        # Use reconciled inventor name if available
+        reconciled_name = (
+            inventor_name_lookup.get((a.patent_number, a.employee_id))
+            or inventor_name_lookup.get((a.patent_number, a.inventor_name))
+            or a.inventor_name
+        )
+
         rows.append({
-            "inventor_name": a.inventor_name,
+            "inventor_name": reconciled_name,
             "employee_id": a.employee_id,
             "patent_number": a.patent_number,
             "patent_title": title_by_patent_no.get(a.patent_number, ""),
+            "issue_date": issue_date_by_patent_no.get(a.patent_number, ""),
             "award_type": a.award_type,
             "unit_cost": unit_cost,
             "work_city": city,
@@ -273,8 +312,8 @@ def _load_awards_data(session, project_id):
 
 
 def _build_awards_sheet(ws, rows):
-    headers = ["Inventor Name", "Employee ID", "Patent Number", "Patent Title", "Award Type",
-               "Unit Cost", "Work City", "Tax Rate (%)", "Tax Amount ($)", "Delivery Address"]
+    headers = ["Inventor Name", "Employee ID", "Patent Number", "Patent Title", "Issue Date",
+               "Award Type", "Unit Cost", "Work City", "Tax Rate (%)", "Tax Amount ($)", "Delivery Address"]
     ws.append(headers)
     _style_header(ws, len(headers))
 
@@ -284,11 +323,12 @@ def _build_awards_sheet(ws, rows):
         ws.cell(row=row_num, column=2, value=r["employee_id"])
         ws.cell(row=row_num, column=3, value=r["patent_number"])
         ws.cell(row=row_num, column=4, value=r["patent_title"])
-        ws.cell(row=row_num, column=5, value=r["award_type"])
-        ws.cell(row=row_num, column=6, value=r["unit_cost"]).number_format = CURRENCY_FMT
-        ws.cell(row=row_num, column=7, value=r["work_city"])
-        ws.cell(row=row_num, column=8, value=r["tax_rate"]).number_format = '0.00'
-        ws.cell(row=row_num, column=9, value=r["tax_amount"]).number_format = CURRENCY_FMT
-        ws.cell(row=row_num, column=10, value=r["delivery"])
+        ws.cell(row=row_num, column=5, value=r["issue_date"])
+        ws.cell(row=row_num, column=6, value=r["award_type"])
+        ws.cell(row=row_num, column=7, value=r["unit_cost"]).number_format = CURRENCY_FMT
+        ws.cell(row=row_num, column=8, value=r["work_city"])
+        ws.cell(row=row_num, column=9, value=r["tax_rate"]).number_format = '0.00'
+        ws.cell(row=row_num, column=10, value=r["tax_amount"]).number_format = CURRENCY_FMT
+        ws.cell(row=row_num, column=11, value=r["delivery"])
 
     _auto_width(ws)
