@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api'
 import { Loader2, RefreshCw, Plus, Trash2, Check, X, AlertTriangle } from 'lucide-react'
-import { useSortFilter, ColumnDef } from '../hooks/useSortFilter'
+import { useSortFilter } from '../hooks/useSortFilter'
+import type { ColumnDef } from '../hooks/useSortFilter'
 import SortFilterHeader from './SortFilterHeader'
 
 const PHYSICAL_COLS: ColumnDef[] = [
