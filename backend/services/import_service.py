@@ -142,7 +142,7 @@ def import_db_source(session: Session, project_id: int, file_path: str) -> dict:
                 asset_name=first["Patent: Asset Name"].strip(),
                 patent_no=patent_no,
                 patent_no_numeric=normalize_patent_number(patent_no),
-                title=first["Title"].strip(),
+                title=first["Title"].strip().upper(),
                 issue_date=parse_date(first["Issue Date of Patent"]),
             )
             session.add(patent)
@@ -249,7 +249,7 @@ def import_unified(session: Session, project_id: int, file_path: str) -> dict:
                 publication_number=pub_number,
                 patent_no_numeric=normalize_patent_number(pub_number),
                 publication_date=parse_date(data.get("publication_date")),
-                title=str(data.get("title", "")).strip(),
+                title=str(data.get("title", "")).strip().upper(),
                 grant_number=str(data.get("grant_number", "")).strip(),
                 assignee_current=str(data.get("assignee_current", "")).strip() or None,
                 assignee_original=str(data.get("assignee_original", "")).strip() or None,
