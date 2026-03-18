@@ -195,21 +195,24 @@ def import_db_source(session: Session, project_id: int, file_path: str) -> dict:
             costs_created += 1
 
     # Auto-create TaxRate rows for new work-city jurisdictions
-    seen_cities: set[str] = set()
+    # Track city -> state mappings
+    city_state_map: dict[str, str] = {}
     for group_rows in groups.values():
         for row in group_rows:
             wc = row.get("Inventor: Work City", "").strip()
+            ws = row.get("Inventor: Work State", "").strip()
             if wc:
-                seen_cities.add(wc)
+                city_state_map[wc] = ws or city_state_map.get(wc, "")
 
     existing_rates = session.exec(
         select(TaxRate).where(TaxRate.project_id == project_id)
     ).all()
     existing_keys = {r.lookup_key for r in existing_rates}
     tax_rates_created = 0
-    for city in sorted(seen_cities):
+    for city in sorted(city_state_map.keys()):
         if city not in existing_keys:
-            session.add(TaxRate(project_id=project_id, jurisdiction=city, lookup_key=city, tax_percent=0.0))
+            state = city_state_map.get(city, "")
+            session.add(TaxRate(project_id=project_id, jurisdiction=city, state=state or None, lookup_key=city, tax_percent=0.0))
             tax_rates_created += 1
 
     session.commit()

@@ -9,6 +9,7 @@ from models import (
 )
 from pydantic import BaseModel
 from services.matching_service import run_matching, align_inventors, score_title, score_inventor_lists
+from services.award_service import sync_awards_from_crossref
 
 router = APIRouter(tags=["reconciliation"])
 
@@ -192,7 +193,11 @@ def save_choices(crossref_id: int, choices: list[dict], session: Session = Depen
         session.add(choice)
 
     session.commit()
-    return {"ok": True, "count": len(choices)}
+
+    # Sync physical awards if they exist
+    sync_result = sync_awards_from_crossref(session, crossref_id)
+
+    return {"ok": True, "count": len(choices), "awards_updated": sync_result["updated"]}
 
 
 class MergeRequest(BaseModel):
@@ -291,6 +296,27 @@ def merge_crossrefs(project_id: int, req: MergeRequest, session: Session = Depen
     session.refresh(new_cr)
 
     return {"ok": True, "new_crossref_id": new_cr.id}
+
+
+@router.post("/api/projects/{project_id}/resolve-all-passed")
+def resolve_all_passed(project_id: int, session: Session = Depends(get_session)):
+    """Mark all 'Passed Auto Review' records as resolved."""
+    crossrefs = session.exec(
+        select(PatentCrossRef).where(
+            PatentCrossRef.project_id == project_id,
+            PatentCrossRef.status == "Passed Auto Review",
+            PatentCrossRef.resolved == False,
+        )
+    ).all()
+    now = datetime.utcnow()
+    count = 0
+    for cr in crossrefs:
+        cr.resolved = True
+        cr.resolved_at = now
+        session.add(cr)
+        count += 1
+    session.commit()
+    return {"ok": True, "resolved_count": count}
 
 
 @router.put("/api/reconciliations/{crossref_id}/resolve")

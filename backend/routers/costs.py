@@ -68,6 +68,7 @@ def create_tax_rate(project_id: int, data: dict, session: Session = Depends(get_
     rate = TaxRate(
         project_id=project_id,
         jurisdiction=data["jurisdiction"],
+        state=data.get("state"),
         lookup_key=data["lookup_key"],
         tax_percent=data["tax_percent"],
     )
@@ -82,7 +83,7 @@ def update_tax_rate(project_id: int, rate_id: int, data: dict, session: Session 
     rate = session.get(TaxRate, rate_id)
     if not rate or rate.project_id != project_id:
         raise HTTPException(status_code=404, detail="Not found")
-    for field in ("jurisdiction", "lookup_key", "tax_percent"):
+    for field in ("jurisdiction", "state", "lookup_key", "tax_percent"):
         if field in data:
             setattr(rate, field, data[field])
     session.add(rate)

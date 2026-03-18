@@ -40,10 +40,10 @@ export default function ReconciliationDetailPage() {
     const db = data.db_source
     const uni = data.unified
 
-    // Default title
+    // Default title: prefer unified, make it ALL CAPS
     if (!map['title']) {
-      const val = db?.title || uni?.title || ''
-      map['title'] = { source: db ? 'db_source' : 'unified', value: val }
+      const val = uni?.title || db?.title || ''
+      map['title'] = { source: uni ? 'unified' : 'db_source', value: val.toUpperCase() }
     }
 
     // Default issue_date

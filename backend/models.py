@@ -116,7 +116,8 @@ class AwardCost(SQLModel, table=True):
 class TaxRate(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     project_id: int = Field(foreign_key="project.id")
-    jurisdiction: str
+    jurisdiction: str  # city name
+    state: Optional[str] = None
     lookup_key: str  # e.g. state code like "CA"
     tax_percent: float
 

@@ -5,6 +5,7 @@ from sqlmodel import Session, select
 from models import (
     PatentCrossRef, DbSourcePatent, DbSourceInventor,
     PhysicalAward, AwardCost, TaxRate, ProgramMgmtFee,
+    ReconciliationChoice,
 )
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,76 @@ def generate_physical_awards(session: Session, project_id: int) -> dict:
     session.commit()
     logger.info("Generated %d physical awards for project %d", len(awards), project_id)
     return {"generated": len(awards)}
+
+
+def sync_awards_from_crossref(session: Session, crossref_id: int) -> dict:
+    """Update existing physical awards based on reconciliation choices for a crossref.
+    If physical awards exist for this patent, update their inventor_name from choices.
+    Returns count of updated awards."""
+    cr = session.get(PatentCrossRef, crossref_id)
+    if not cr or not cr.db_source_patent_id:
+        return {"updated": 0}
+
+    db_pat = session.get(DbSourcePatent, cr.db_source_patent_id)
+    if not db_pat:
+        return {"updated": 0}
+
+    # Check if any physical awards exist for this project
+    all_awards = session.exec(
+        select(PhysicalAward).where(PhysicalAward.project_id == cr.project_id)
+    ).all()
+    if not all_awards:
+        return {"updated": 0}
+
+    # Get choices for this crossref
+    choices = session.exec(
+        select(ReconciliationChoice).where(ReconciliationChoice.crossref_id == crossref_id)
+    ).all()
+    choices_map = {c.field_name: c.chosen_value for c in choices}
+
+    # Find awards matching this patent
+    matching_awards = session.exec(
+        select(PhysicalAward).where(
+            PhysicalAward.project_id == cr.project_id,
+            PhysicalAward.patent_number == db_pat.patent_no,
+        )
+    ).all()
+
+    # Get db inventors to map awards to inventor choices
+    db_inventors = session.exec(
+        select(DbSourceInventor).where(DbSourceInventor.db_source_patent_id == db_pat.id)
+    ).all()
+
+    updated = 0
+    for award in matching_awards:
+        # Find the matching db inventor by employee_id or name
+        matched_inv = None
+        for inv in db_inventors:
+            if (inv.employee_id and inv.employee_id == award.employee_id) or \
+               inv.legal_name == award.inventor_name or \
+               (inv.preferred_name and inv.preferred_name == award.inventor_name):
+                matched_inv = inv
+                break
+
+        if matched_inv:
+            # Check if there's a name choice for this inventor
+            name_field = f"inventor_{matched_inv.id}_name"
+            if name_field in choices_map:
+                award.inventor_name = choices_map[name_field]
+                updated += 1
+
+            # Check if inventor is excluded
+            include_field = f"inventor_{matched_inv.id}_include"
+            if include_field in choices_map and choices_map[include_field] == 'no':
+                session.delete(award)
+                updated += 1
+                continue
+
+        session.add(award)
+
+    session.commit()
+    logger.info("Synced %d physical awards for crossref %d", updated, crossref_id)
+    return {"updated": updated}
 
 
 def compute_cost_summary(session: Session, project_id: int) -> dict:

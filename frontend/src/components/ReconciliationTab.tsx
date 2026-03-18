@@ -61,6 +61,14 @@ export default function ReconciliationTab({ projectId }: { projectId: number }) 
     },
   })
 
+  const resolveAllMutation = useMutation({
+    mutationFn: () => api.resolveAllPassed(projectId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reconciliations', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] })
+    },
+  })
+
   const mergeMutation = useMutation({
     mutationFn: ({ dbId, uniId, patentNo }: { dbId: number; uniId: number; patentNo: string }) =>
       api.mergeCrossrefs(projectId, dbId, uniId, patentNo),
@@ -144,7 +152,15 @@ export default function ReconciliationTab({ projectId }: { projectId: number }) 
           </>
         )}
 
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => resolveAllMutation.mutate()}
+            disabled={resolveAllMutation.isPending}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors cursor-pointer border-0"
+          >
+            {resolveAllMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+            Resolve All Passed
+          </button>
           <a
             href={api.exportUrl(projectId)}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-50 no-underline transition-colors"
