@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 from models import (
     PhysicalAward, AwardCost, TaxRate, ProgramMgmtFee,
     ShippingAddress, InventorShipping,
+    PatentCrossRef, DbSourcePatent, ReconciliationChoice,
 )
 from services.award_service import compute_cost_summary
 
@@ -207,6 +208,30 @@ def _load_awards_data(session, project_id):
     ).all()
     addr_by_id = {a.id: a for a in addresses}
 
+    # Build patent_number -> reconciled title lookup
+    crossrefs = session.exec(
+        select(PatentCrossRef).where(
+            PatentCrossRef.project_id == project_id,
+            PatentCrossRef.db_source_patent_id != None,
+        )
+    ).all()
+    title_by_patent_no = {}
+    for cr in crossrefs:
+        db_pat = session.get(DbSourcePatent, cr.db_source_patent_id)
+        if not db_pat:
+            continue
+        # Check for a reconciled title choice
+        title_choice = session.exec(
+            select(ReconciliationChoice).where(
+                ReconciliationChoice.crossref_id == cr.id,
+                ReconciliationChoice.field_name == "title",
+            )
+        ).first()
+        if title_choice:
+            title_by_patent_no[db_pat.patent_no] = title_choice.chosen_value
+        else:
+            title_by_patent_no[db_pat.patent_no] = db_pat.title
+
     rows = []
     for a in awards:
         unit_cost = cost_by_type.get(a.award_type, 0.0)
@@ -235,6 +260,7 @@ def _load_awards_data(session, project_id):
             "inventor_name": a.inventor_name,
             "employee_id": a.employee_id,
             "patent_number": a.patent_number,
+            "patent_title": title_by_patent_no.get(a.patent_number, ""),
             "award_type": a.award_type,
             "unit_cost": unit_cost,
             "work_city": city,
@@ -247,7 +273,7 @@ def _load_awards_data(session, project_id):
 
 
 def _build_awards_sheet(ws, rows):
-    headers = ["Inventor Name", "Employee ID", "Patent Number", "Award Type",
+    headers = ["Inventor Name", "Employee ID", "Patent Number", "Patent Title", "Award Type",
                "Unit Cost", "Work City", "Tax Rate (%)", "Tax Amount ($)", "Delivery Address"]
     ws.append(headers)
     _style_header(ws, len(headers))
@@ -257,11 +283,12 @@ def _build_awards_sheet(ws, rows):
         ws.cell(row=row_num, column=1, value=r["inventor_name"])
         ws.cell(row=row_num, column=2, value=r["employee_id"])
         ws.cell(row=row_num, column=3, value=r["patent_number"])
-        ws.cell(row=row_num, column=4, value=r["award_type"])
-        ws.cell(row=row_num, column=5, value=r["unit_cost"]).number_format = CURRENCY_FMT
-        ws.cell(row=row_num, column=6, value=r["work_city"])
-        ws.cell(row=row_num, column=7, value=r["tax_rate"]).number_format = '0.00'
-        ws.cell(row=row_num, column=8, value=r["tax_amount"]).number_format = CURRENCY_FMT
-        ws.cell(row=row_num, column=9, value=r["delivery"])
+        ws.cell(row=row_num, column=4, value=r["patent_title"])
+        ws.cell(row=row_num, column=5, value=r["award_type"])
+        ws.cell(row=row_num, column=6, value=r["unit_cost"]).number_format = CURRENCY_FMT
+        ws.cell(row=row_num, column=7, value=r["work_city"])
+        ws.cell(row=row_num, column=8, value=r["tax_rate"]).number_format = '0.00'
+        ws.cell(row=row_num, column=9, value=r["tax_amount"]).number_format = CURRENCY_FMT
+        ws.cell(row=row_num, column=10, value=r["delivery"])
 
     _auto_width(ws)
