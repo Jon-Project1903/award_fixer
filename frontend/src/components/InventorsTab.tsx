@@ -49,8 +49,26 @@ export default function InventorsTab({ projectId }: { projectId: number }) {
     )
   }
 
+  const termedCount = inventors.filter((inv: any) =>
+    inv.employment_status && inv.employment_status.toLowerCase() === 'termed'
+  ).length
+
   return (
     <div className="space-y-4">
+      {/* Stats */}
+      <div className="flex items-center gap-4">
+        <div className="bg-white rounded-xl border border-gray-200 px-4 py-3">
+          <span className="text-2xl font-bold text-gray-900">{inventors.length}</span>
+          <span className="text-sm text-gray-500 ml-2">Total Inventors</span>
+        </div>
+        {termedCount > 0 && (
+          <div className="bg-red-50 rounded-xl border border-red-200 px-4 py-3">
+            <span className="text-2xl font-bold text-red-700">{termedCount}</span>
+            <span className="text-sm text-red-600 ml-2">Termed</span>
+          </div>
+        )}
+      </div>
+
       {/* Search */}
       <div className="flex items-center gap-3">
         <input
@@ -76,6 +94,7 @@ export default function InventorsTab({ projectId }: { projectId: number }) {
               <th className="text-left px-4 py-3 font-medium text-gray-600">Employee ID</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Email</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Location</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Award Types</th>
               <th className="text-center px-4 py-3 font-medium text-gray-600">Patents</th>
             </tr>
@@ -146,6 +165,21 @@ function InventorRow({
         <td className="px-4 py-3 text-gray-600 text-xs">{inv.work_email || '-'}</td>
         <td className="px-4 py-3 text-xs text-gray-600">{location || '-'}</td>
         <td className="px-4 py-3">
+          {inv.employment_status ? (
+            <span className={`inline-block px-2 py-0.5 text-xs rounded-full font-medium ${
+              inv.employment_status.toLowerCase() === 'termed'
+                ? 'bg-red-100 text-red-700'
+                : inv.employment_status.toLowerCase() === 'active'
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-gray-100 text-gray-600'
+            }`}>
+              {inv.employment_status}
+            </span>
+          ) : (
+            <span className="text-gray-300 text-xs">-</span>
+          )}
+        </td>
+        <td className="px-4 py-3">
           <div className="flex flex-wrap gap-1">
             {inv.award_types.map((at: string) => (
               <span
@@ -171,7 +205,7 @@ function InventorRow({
       {/* Expanded Detail */}
       {isExpanded && (
         <tr>
-          <td colSpan={7} className="px-0 py-0">
+          <td colSpan={8} className="px-0 py-0">
             <div className="bg-gray-50 border-t border-b border-gray-200">
               {/* Inventor detail fields */}
               <div className="px-8 py-4 grid grid-cols-4 gap-4 text-xs border-b border-gray-200">

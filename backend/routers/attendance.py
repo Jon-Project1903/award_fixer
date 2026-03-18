@@ -60,6 +60,9 @@ def populate_from_inventors(project_id: int, session: Session = Depends(get_sess
             )
         ).all()
         for inv in inventors:
+            # Skip termed employees
+            if inv.employment_status and inv.employment_status.lower() == "termed":
+                continue
             # Use employee_id if available, otherwise fall back to name as dedup key
             emp_id = (inv.employee_id or "").strip()
             dedup_key = emp_id if emp_id else inv.legal_name.strip().lower()
