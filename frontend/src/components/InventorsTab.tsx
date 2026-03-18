@@ -29,6 +29,15 @@ export default function InventorsTab({ projectId }: { projectId: number }) {
     queryFn: () => api.getInventors(projectId),
   })
 
+  const { data: awardCosts = [] } = useQuery({
+    queryKey: ['award-costs', projectId],
+    queryFn: () => api.getAwardCosts(projectId),
+  })
+  const awardTypeOptions = useMemo(() =>
+    [...new Set(awardCosts.map((c: any) => c.award_type))].sort() as string[],
+    [awardCosts]
+  )
+
   const processed = useMemo(() => {
     let result = inventors
 
@@ -200,6 +209,7 @@ export default function InventorsTab({ projectId }: { projectId: number }) {
                   onNavigate={(crossrefId: number) => navigate(`/reconciliations/${crossrefId}`)}
                   googlePatentUrl={googlePatentUrl}
                   queryClient={queryClient}
+                  awardTypeOptions={awardTypeOptions}
                 />
               )
             })}
@@ -218,6 +228,7 @@ function InventorRow({
   onNavigate,
   googlePatentUrl,
   queryClient,
+  awardTypeOptions,
 }: {
   inv: any
   projectId: number
@@ -226,6 +237,7 @@ function InventorRow({
   onNavigate: (crossrefId: number) => void
   googlePatentUrl: (patentNo: string) => string
   queryClient: any
+  awardTypeOptions: string[]
 }) {
   const location = [inv.work_city, inv.work_state, inv.work_country_iso]
     .filter(Boolean)
@@ -247,7 +259,7 @@ function InventorRow({
 
   const startEditAwardType = (e: React.MouseEvent) => {
     e.stopPropagation()
-    setNewAwardType(inv.award_types.join(', '))
+    setNewAwardType(inv.award_types[0] || '')
     setEditingAwardType(true)
   }
 
@@ -289,15 +301,19 @@ function InventorRow({
         <td className="px-4 py-3">
           {editingAwardType ? (
             <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-              <input
-                type="text"
+              <select
                 value={newAwardType}
                 onChange={e => setNewAwardType(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') updateAwardTypeMut.mutate(newAwardType.trim()) }}
-                className="w-24 px-2 py-0.5 border border-blue-300 rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none"
+                className="px-2 py-0.5 border border-blue-300 rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none cursor-pointer"
                 autoFocus
-              />
-              <button onClick={() => updateAwardTypeMut.mutate(newAwardType.trim())} className="p-0.5 text-green-600 hover:bg-green-50 rounded cursor-pointer border-0 bg-transparent"><Check className="w-3.5 h-3.5" /></button>
+              >
+                <option value="">-- Select --</option>
+                {awardTypeOptions.map(at => (
+                  <option key={at} value={at}>{at}</option>
+                ))}
+                <option value="Opt-Out">Opt-Out</option>
+              </select>
+              <button onClick={() => { if (newAwardType) updateAwardTypeMut.mutate(newAwardType) }} className="p-0.5 text-green-600 hover:bg-green-50 rounded cursor-pointer border-0 bg-transparent"><Check className="w-3.5 h-3.5" /></button>
               <button onClick={() => setEditingAwardType(false)} className="p-0.5 text-gray-400 hover:bg-gray-100 rounded cursor-pointer border-0 bg-transparent"><X className="w-3.5 h-3.5" /></button>
             </div>
           ) : (
