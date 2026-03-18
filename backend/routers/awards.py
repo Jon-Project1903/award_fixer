@@ -1,8 +1,13 @@
+from collections import defaultdict
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 from database import get_session
-from models import PhysicalAward
+from models import (
+    PhysicalAward, OptOutAward, TermedAward,
+    PatentCrossRef, DbSourcePatent, DbSourceInventor,
+    UnifiedPatent, UnifiedInventor,
+)
 from services.award_service import generate_physical_awards, compute_cost_summary
 
 router = APIRouter(prefix="/api/projects", tags=["awards"])
@@ -12,6 +17,8 @@ router = APIRouter(prefix="/api/projects", tags=["awards"])
 def generate_awards(project_id: int, session: Session = Depends(get_session)):
     return generate_physical_awards(session, project_id)
 
+
+# ── Physical Awards ─────────────────────────────────────────
 
 @router.get("/{project_id}/physical-awards")
 def list_physical_awards(project_id: int, session: Session = Depends(get_session)):
@@ -65,6 +72,95 @@ def delete_physical_award(
     session.commit()
     return {"ok": True}
 
+
+# ── Opt-Out Awards ──────────────────────────────────────────
+
+@router.get("/{project_id}/opt-out-awards")
+def list_opt_out_awards(project_id: int, session: Session = Depends(get_session)):
+    return session.exec(
+        select(OptOutAward).where(OptOutAward.project_id == project_id)
+    ).all()
+
+
+# ── Termed Awards ───────────────────────────────────────────
+
+@router.get("/{project_id}/termed-awards")
+def list_termed_awards(project_id: int, session: Session = Depends(get_session)):
+    return session.exec(
+        select(TermedAward).where(TermedAward.project_id == project_id)
+    ).all()
+
+
+# ── Award Stats ─────────────────────────────────────────────
+
+@router.get("/{project_id}/award-stats")
+def get_award_stats(project_id: int, session: Session = Depends(get_session)):
+    """Return stats about awards, inventor counts, and discrepancies."""
+    # Physical awards by type
+    awards = session.exec(
+        select(PhysicalAward).where(PhysicalAward.project_id == project_id)
+    ).all()
+    by_type: dict[str, int] = defaultdict(int)
+    for a in awards:
+        by_type[a.award_type] += 1
+
+    opt_outs = session.exec(
+        select(OptOutAward).where(OptOutAward.project_id == project_id)
+    ).all()
+
+    termed = session.exec(
+        select(TermedAward).where(TermedAward.project_id == project_id)
+    ).all()
+
+    # Count inventors across all patents from each source
+    db_patents = session.exec(
+        select(DbSourcePatent).where(DbSourcePatent.project_id == project_id)
+    ).all()
+    total_db_inventors = 0
+    for p in db_patents:
+        count = len(session.exec(
+            select(DbSourceInventor).where(DbSourceInventor.db_source_patent_id == p.id)
+        ).all())
+        total_db_inventors += count
+
+    uni_patents = session.exec(
+        select(UnifiedPatent).where(UnifiedPatent.project_id == project_id)
+    ).all()
+    total_uni_inventors = 0
+    for p in uni_patents:
+        count = len(session.exec(
+            select(UnifiedInventor).where(UnifiedInventor.unified_patent_id == p.id)
+        ).all())
+        total_uni_inventors += count
+
+    # Reconciled = physical awards + opt-outs + termed
+    total_reconciled = len(awards) + len(opt_outs) + len(termed)
+
+    # Discrepancies
+    discrepancies = []
+    if total_db_inventors != total_uni_inventors:
+        discrepancies.append(
+            f"DB has {total_db_inventors} inventors vs Unified has {total_uni_inventors} inventors"
+        )
+    if total_reconciled != total_db_inventors:
+        diff = total_db_inventors - total_reconciled
+        discrepancies.append(
+            f"{abs(diff)} inventor(s) {'not accounted for' if diff > 0 else 'extra'} in awards vs DB source"
+        )
+
+    return {
+        "by_type": dict(sorted(by_type.items())),
+        "total_awards": len(awards),
+        "opt_outs": len(opt_outs),
+        "termed": len(termed),
+        "total_db_inventors": total_db_inventors,
+        "total_uni_inventors": total_uni_inventors,
+        "total_reconciled": total_reconciled,
+        "discrepancies": discrepancies,
+    }
+
+
+# ── Cost Summary ────────────────────────────────────────────
 
 @router.get("/{project_id}/cost-summary")
 def get_cost_summary(project_id: int, session: Session = Depends(get_session)):

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api'
-import { Loader2, RefreshCw, Plus, Trash2, Check, X, ChevronDown, ChevronRight, DollarSign } from 'lucide-react'
+import { Plus, Trash2, Check, X, ChevronDown, ChevronRight } from 'lucide-react'
 
 const fmt = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 
@@ -18,22 +18,6 @@ export default function CostsTab({ projectId }: { projectId: number }) {
     queryKey: ['cost-summary', projectId],
     queryFn: () => api.getCostSummary(projectId),
     enabled: awards.length > 0,
-  })
-
-  const generateMut = useMutation({
-    mutationFn: () => api.generateAwards(projectId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['physical-awards', projectId] })
-      queryClient.invalidateQueries({ queryKey: ['cost-summary', projectId] })
-    },
-  })
-
-  const deleteMut = useMutation({
-    mutationFn: (id: number) => api.deletePhysicalAward(projectId, id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['physical-awards', projectId] })
-      queryClient.invalidateQueries({ queryKey: ['cost-summary', projectId] })
-    },
   })
 
   // PM Fee CRUD
@@ -60,98 +44,8 @@ export default function CostsTab({ projectId }: { projectId: number }) {
     },
   })
 
-  // Inline add for physical awards
-  const [addingAward, setAddingAward] = useState(false)
-  const [newAward, setNewAward] = useState({ employee_id: '', patent_number: '', award_type: '', inventor_name: '', work_state: '' })
-  const createAwardMut = useMutation({
-    mutationFn: (data: any) => api.createPhysicalAward(projectId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['physical-awards', projectId] })
-      queryClient.invalidateQueries({ queryKey: ['cost-summary', projectId] })
-      setAddingAward(false)
-      setNewAward({ employee_id: '', patent_number: '', award_type: '', inventor_name: '', work_state: '' })
-    },
-  })
-
   return (
     <div className="space-y-8">
-      {/* Generate Awards */}
-      <div>
-        <div className="flex items-center gap-3 mb-3">
-          <h2 className="text-lg font-semibold text-gray-900">Physical Awards</h2>
-          <button
-            onClick={() => generateMut.mutate()}
-            disabled={generateMut.isPending}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors cursor-pointer border-0"
-          >
-            {generateMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            Generate Awards
-          </button>
-          <button
-            onClick={() => { setAddingAward(true); setNewAward({ employee_id: '', patent_number: '', award_type: '', inventor_name: '', work_state: '' }) }}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 cursor-pointer border-0 transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" /> Add Row
-          </button>
-          {generateMut.data && (
-            <span className="text-sm text-gray-600">{generateMut.data.generated} awards generated</span>
-          )}
-        </div>
-
-        {awards.length > 0 ? (
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden max-h-96 overflow-y-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0">
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="text-left px-4 py-2.5 font-medium text-gray-600">Employee ID</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-gray-600">Name</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-gray-600">Patent No.</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-gray-600">Award Type</th>
-                  <th className="text-left px-4 py-2.5 font-medium text-gray-600">State</th>
-                  <th className="w-10 px-2 py-2.5"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {awards.map((a: any) => (
-                  <tr key={a.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 font-mono text-xs">{a.employee_id}</td>
-                    <td className="px-4 py-2">{a.inventor_name}</td>
-                    <td className="px-4 py-2 font-mono text-xs">{a.patent_number}</td>
-                    <td className="px-4 py-2">{a.award_type}</td>
-                    <td className="px-4 py-2 text-xs">{a.work_state || '-'}</td>
-                    <td className="px-2 py-2">
-                      <button onClick={() => deleteMut.mutate(a.id)} className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer border-0 bg-transparent">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {addingAward && (
-                  <tr className="bg-blue-50/50">
-                    <td className="px-4 py-2"><input type="text" value={newAward.employee_id} onChange={e => setNewAward(d => ({ ...d, employee_id: e.target.value }))} onKeyDown={e => { if (e.key === 'Enter') createAwardMut.mutate(newAward) }} placeholder="Employee ID" className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-2 focus:ring-blue-500 outline-none" /></td>
-                    <td className="px-4 py-2"><input type="text" value={newAward.inventor_name} onChange={e => setNewAward(d => ({ ...d, inventor_name: e.target.value }))} onKeyDown={e => { if (e.key === 'Enter') createAwardMut.mutate(newAward) }} placeholder="Name" className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none" /></td>
-                    <td className="px-4 py-2"><input type="text" value={newAward.patent_number} onChange={e => setNewAward(d => ({ ...d, patent_number: e.target.value }))} onKeyDown={e => { if (e.key === 'Enter') createAwardMut.mutate(newAward) }} placeholder="Patent No." className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-2 focus:ring-blue-500 outline-none" /></td>
-                    <td className="px-4 py-2"><input type="text" value={newAward.award_type} onChange={e => setNewAward(d => ({ ...d, award_type: e.target.value }))} onKeyDown={e => { if (e.key === 'Enter') createAwardMut.mutate(newAward) }} placeholder="Award Type" className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none" /></td>
-                    <td className="px-4 py-2"><input type="text" value={newAward.work_state} onChange={e => setNewAward(d => ({ ...d, work_state: e.target.value }))} onKeyDown={e => { if (e.key === 'Enter') createAwardMut.mutate(newAward) }} placeholder="State" className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-2 focus:ring-blue-500 outline-none" /></td>
-                    <td className="px-2 py-2">
-                      <span className="inline-flex gap-1">
-                        <button onClick={() => createAwardMut.mutate(newAward)} className="p-1 text-green-600 hover:bg-green-50 rounded cursor-pointer border-0 bg-transparent"><Check className="w-4 h-4" /></button>
-                        <button onClick={() => setAddingAward(false)} className="p-1 text-gray-400 hover:bg-gray-100 rounded cursor-pointer border-0 bg-transparent"><X className="w-4 h-4" /></button>
-                      </span>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="text-center py-8 text-gray-400 bg-white rounded-xl border border-gray-200">
-            <DollarSign className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">No physical awards yet. Complete reconciliation then click "Generate Awards".</p>
-          </div>
-        )}
-      </div>
-
       {/* PM Fees Editor */}
       <div>
         <div className="flex items-center justify-between mb-3">
@@ -233,12 +127,10 @@ export default function CostsTab({ projectId }: { projectId: number }) {
                     <td className="px-4 py-2.5 text-right font-medium">{fmt(item.total)}</td>
                   </tr>
                 ))}
-                {/* Subtotal */}
                 <tr className="bg-gray-50 font-medium">
                   <td className="px-4 py-2.5" colSpan={3}>Subtotal</td>
                   <td className="px-4 py-2.5 text-right">{fmt(summary.subtotal)}</td>
                 </tr>
-                {/* Taxes */}
                 <tr
                   className="hover:bg-gray-50 cursor-pointer"
                   onClick={() => setShowTaxDetail(!showTaxDetail)}
@@ -258,12 +150,10 @@ export default function CostsTab({ projectId }: { projectId: number }) {
                     <td className="px-4 py-1.5 text-right text-gray-600">{fmt(tb.tax)}</td>
                   </tr>
                 ))}
-                {/* Subtotal incl tax */}
                 <tr className="bg-gray-50 font-medium">
                   <td className="px-4 py-2.5" colSpan={3}>Subtotal incl. tax</td>
                   <td className="px-4 py-2.5 text-right">{fmt(summary.subtotal_with_tax)}</td>
                 </tr>
-                {/* Other Fees */}
                 {summary.pm_fees.map((f: any) => (
                   <tr key={f.id} className="hover:bg-gray-50">
                     <td className="px-4 py-2.5">{f.description}</td>
@@ -272,7 +162,6 @@ export default function CostsTab({ projectId }: { projectId: number }) {
                     <td className="px-4 py-2.5 text-right">{fmt(f.total)}</td>
                   </tr>
                 ))}
-                {/* Grand Total */}
                 <tr className="bg-blue-50 font-bold text-blue-900">
                   <td className="px-4 py-3" colSpan={3}>GRAND TOTAL</td>
                   <td className="px-4 py-3 text-right text-lg">{fmt(summary.grand_total)}</td>

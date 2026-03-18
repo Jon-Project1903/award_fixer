@@ -6,7 +6,8 @@ from openpyxl.styles import Font, PatternFill, Alignment, numbers
 from sqlmodel import Session, select
 
 from models import (
-    PhysicalAward, AwardCost, TaxRate, ProgramMgmtFee,
+    PhysicalAward, OptOutAward, TermedAward,
+    AwardCost, TaxRate, ProgramMgmtFee,
     ShippingAddress, InventorShipping,
     PatentCrossRef, DbSourcePatent, DbSourceInventor, UnifiedPatent, ReconciliationChoice,
 )
@@ -77,6 +78,14 @@ def generate_report(session: Session, project_id: int) -> io.BytesIO:
         sheet_name = award_type[:31]  # Excel 31-char limit
         ws_type = wb.create_sheet(sheet_name)
         _build_awards_sheet(ws_type, by_type[award_type])
+
+    # --- Opt-Outs sheet ---
+    ws_opt = wb.create_sheet("Opt-Outs")
+    _build_simple_awards_sheet(ws_opt, session, project_id, OptOutAward)
+
+    # --- Termed sheet ---
+    ws_termed = wb.create_sheet("Termed")
+    _build_simple_awards_sheet(ws_termed, session, project_id, TermedAward)
 
     buf = io.BytesIO()
     wb.save(buf)
@@ -330,5 +339,24 @@ def _build_awards_sheet(ws, rows):
         ws.cell(row=row_num, column=9, value=r["tax_rate"]).number_format = '0.00'
         ws.cell(row=row_num, column=10, value=r["tax_amount"]).number_format = CURRENCY_FMT
         ws.cell(row=row_num, column=11, value=r["delivery"])
+
+    _auto_width(ws)
+
+
+def _build_simple_awards_sheet(ws, session, project_id, model):
+    """Build a sheet for OptOutAward or TermedAward rows."""
+    rows = session.exec(select(model).where(model.project_id == project_id)).all()
+
+    headers = ["Inventor Name", "Employee ID", "Patent Number", "Work State", "Work City"]
+    ws.append(headers)
+    _style_header(ws, len(headers))
+
+    for a in rows:
+        row_num = ws.max_row + 1
+        ws.cell(row=row_num, column=1, value=a.inventor_name)
+        ws.cell(row=row_num, column=2, value=a.employee_id)
+        ws.cell(row=row_num, column=3, value=a.patent_number)
+        ws.cell(row=row_num, column=4, value=a.work_state or "")
+        ws.cell(row=row_num, column=5, value=a.work_city or "")
 
     _auto_width(ws)

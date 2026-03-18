@@ -4,16 +4,18 @@ import { api } from '../api'
 import DataInputTab from '../components/DataInputTab'
 import ReconciliationTab from '../components/ReconciliationTab'
 import InventorsTab from '../components/InventorsTab'
+import AwardsTab from '../components/AwardsTab'
 import AttendanceTab from '../components/AttendanceTab'
 import ShippingTab from '../components/ShippingTab'
 import CostsTab from '../components/CostsTab'
 import ReportTab from '../components/ReportTab'
-import { Database, GitCompare, User2, Users, Package, DollarSign, FileSpreadsheet } from 'lucide-react'
+import { Database, GitCompare, User2, Award, Users, Package, DollarSign, FileSpreadsheet } from 'lucide-react'
 
 const TABS = [
   { key: 'data', label: 'Data Input', icon: Database },
   { key: 'reconciliation', label: 'Reconciliation', icon: GitCompare },
   { key: 'inventors', label: 'Inventors', icon: User2 },
+  { key: 'awards', label: 'Awards', icon: Award },
   { key: 'attendance', label: 'Attendance', icon: Users },
   { key: 'shipping', label: 'Shipping', icon: Package },
   { key: 'costs', label: 'Costs', icon: DollarSign },
@@ -91,6 +93,7 @@ export default function ProjectDetailPage() {
       {activeTab === 'data' && <DataInputTab projectId={projectId} />}
       {activeTab === 'reconciliation' && <ReconciliationTab projectId={projectId} />}
       {activeTab === 'inventors' && <InventorsTab projectId={projectId} />}
+      {activeTab === 'awards' && <AwardsTab projectId={projectId} />}
       {activeTab === 'attendance' && <AttendanceTab projectId={projectId} />}
       {activeTab === 'shipping' && <ShippingTab projectId={projectId} />}
       {activeTab === 'costs' && <CostsTab projectId={projectId} />}

@@ -4,7 +4,8 @@ from sqlmodel import Session, select
 
 from models import (
     PatentCrossRef, DbSourcePatent, DbSourceInventor,
-    PhysicalAward, AwardCost, TaxRate, ProgramMgmtFee,
+    PhysicalAward, OptOutAward, TermedAward,
+    AwardCost, TaxRate, ProgramMgmtFee,
     ReconciliationChoice,
 )
 
@@ -12,13 +13,12 @@ logger = logging.getLogger(__name__)
 
 
 def generate_physical_awards(session: Session, project_id: int) -> dict:
-    """Generate physical award rows from reconciled patents."""
+    """Generate physical award, opt-out, and termed rows from reconciled patents."""
     # Clear existing
-    existing = session.exec(
-        select(PhysicalAward).where(PhysicalAward.project_id == project_id)
-    ).all()
-    for row in existing:
-        session.delete(row)
+    for model in (PhysicalAward, OptOutAward, TermedAward):
+        existing = session.exec(select(model).where(model.project_id == project_id)).all()
+        for row in existing:
+            session.delete(row)
     session.flush()
 
     # Get all crossrefs that have a db_source patent
@@ -30,6 +30,8 @@ def generate_physical_awards(session: Session, project_id: int) -> dict:
     ).all()
 
     awards = []
+    opt_outs = []
+    termed = []
     for cr in crossrefs:
         if cr.erroneous:
             continue
@@ -44,27 +46,35 @@ def generate_physical_awards(session: Session, project_id: int) -> dict:
         ).all()
 
         for inv in inventors:
-            # Skip opt-outs and termed employees
-            if inv.award_type and inv.award_type.lower() == "opt-out":
-                continue
-            if inv.employment_status and inv.employment_status.lower() == "termed":
-                continue
-
-            award = PhysicalAward(
+            common = dict(
                 project_id=project_id,
                 employee_id=inv.employee_id or inv.legal_name,
                 patent_number=db_pat.patent_no,
-                award_type=inv.award_type or "Unknown",
                 inventor_name=inv.preferred_name or inv.legal_name,
                 work_state=inv.work_state,
                 work_city=inv.work_city,
             )
-            session.add(award)
-            awards.append(award)
+
+            if inv.award_type and inv.award_type.lower() == "opt-out":
+                row = OptOutAward(**common)
+                session.add(row)
+                opt_outs.append(row)
+            elif inv.employment_status and inv.employment_status.lower() == "termed":
+                row = TermedAward(**common)
+                session.add(row)
+                termed.append(row)
+            else:
+                row = PhysicalAward(
+                    **common,
+                    award_type=inv.award_type or "Unknown",
+                )
+                session.add(row)
+                awards.append(row)
 
     session.commit()
-    logger.info("Generated %d physical awards for project %d", len(awards), project_id)
-    return {"generated": len(awards)}
+    logger.info("Generated %d awards, %d opt-outs, %d termed for project %d",
+                len(awards), len(opt_outs), len(termed), project_id)
+    return {"generated": len(awards), "opt_outs": len(opt_outs), "termed": len(termed)}
 
 
 def sync_awards_from_crossref(session: Session, crossref_id: int) -> dict:

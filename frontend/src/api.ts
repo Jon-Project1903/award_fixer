@@ -157,6 +157,14 @@ export const api = {
   deletePhysicalAward: (projectId: number, awardId: number) =>
     fetch(`${BASE}/projects/${projectId}/physical-awards/${awardId}`, { method: 'DELETE' }).then(r => json<any>(r)),
 
+  // Opt-Out & Termed Awards
+  getOptOutAwards: (projectId: number) =>
+    fetch(`${BASE}/projects/${projectId}/opt-out-awards`).then(r => json<any[]>(r)),
+  getTermedAwards: (projectId: number) =>
+    fetch(`${BASE}/projects/${projectId}/termed-awards`).then(r => json<any[]>(r)),
+  getAwardStats: (projectId: number) =>
+    fetch(`${BASE}/projects/${projectId}/award-stats`).then(r => json<any>(r)),
+
   // Cost Summary
   getCostSummary: (projectId: number) =>
     fetch(`${BASE}/projects/${projectId}/cost-summary`).then(r => json<any>(r)),

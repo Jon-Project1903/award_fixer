@@ -107,6 +107,26 @@ class PhysicalAward(SQLModel, table=True):
     work_city: Optional[str] = None
 
 
+class OptOutAward(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    project_id: int = Field(foreign_key="project.id")
+    employee_id: str
+    patent_number: str
+    inventor_name: str
+    work_state: Optional[str] = None
+    work_city: Optional[str] = None
+
+
+class TermedAward(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    project_id: int = Field(foreign_key="project.id")
+    employee_id: str
+    patent_number: str
+    inventor_name: str
+    work_state: Optional[str] = None
+    work_city: Optional[str] = None
+
+
 class AwardCost(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     project_id: int = Field(foreign_key="project.id")
