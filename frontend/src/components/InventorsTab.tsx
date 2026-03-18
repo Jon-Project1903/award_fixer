@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api'
-import { ChevronDown, ChevronRight, ExternalLink, User2, ArrowUpDown, ArrowUp, ArrowDown, Search, Pencil, Check, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, ExternalLink, User2, ArrowUpDown, ArrowUp, ArrowDown, Search, Pencil, Check, X, MapPin } from 'lucide-react'
 
 type SortDir = 'asc' | 'desc'
 
@@ -18,6 +18,7 @@ export default function InventorsTab({ projectId }: { projectId: number }) {
   // Filter state
   const [filters, setFilters] = useState<Record<string, string>>({})
   const setFilter = (key: string, value: string) => setFilters(prev => ({ ...prev, [key]: value }))
+  const [showRemoteOnly, setShowRemoteOnly] = useState(false)
 
   const toggleSort = (key: string) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -65,6 +66,11 @@ export default function InventorsTab({ projectId }: { projectId: number }) {
         return loc.includes(q)
       })
     }
+    if (showRemoteOnly) {
+      result = result.filter((inv: any) =>
+        (inv.work_city || '').toLowerCase() === 'remote'
+      )
+    }
     if (f.employment_status) {
       const q = f.employment_status.toLowerCase()
       result = result.filter((inv: any) => (inv.employment_status || '').toLowerCase().includes(q))
@@ -96,7 +102,7 @@ export default function InventorsTab({ projectId }: { projectId: number }) {
     }
 
     return result
-  }, [inventors, sortKey, sortDir, filters])
+  }, [inventors, sortKey, sortDir, filters, showRemoteOnly])
 
   const toggleExpand = (key: string) => {
     setExpandedKey(prev => (prev === key ? null : key))
@@ -123,6 +129,10 @@ export default function InventorsTab({ projectId }: { projectId: number }) {
 
   const termedCount = inventors.filter((inv: any) =>
     inv.employment_status && inv.employment_status.toLowerCase() === 'termed'
+  ).length
+
+  const remoteCount = inventors.filter((inv: any) =>
+    (inv.work_city || '').toLowerCase() === 'remote'
   ).length
 
   const SortIcon = ({ field }: { field: string }) => {
@@ -153,6 +163,20 @@ export default function InventorsTab({ projectId }: { projectId: number }) {
             <span className="text-2xl font-bold text-red-700">{termedCount}</span>
             <span className="text-sm text-red-600 ml-2">Termed</span>
           </div>
+        )}
+        {remoteCount > 0 && (
+          <button
+            onClick={() => setShowRemoteOnly(prev => !prev)}
+            className={`rounded-xl border px-4 py-3 cursor-pointer transition-colors ${
+              showRemoteOnly
+                ? 'bg-amber-100 border-amber-400'
+                : 'bg-amber-50 border-amber-200 hover:bg-amber-100'
+            }`}
+          >
+            <MapPin className="w-4 h-4 inline-block mr-1 text-amber-600 -mt-0.5" />
+            <span className="text-2xl font-bold text-amber-700">{remoteCount}</span>
+            <span className="text-sm text-amber-600 ml-2">Remote</span>
+          </button>
         )}
         {processed.length !== inventors.length && (
           <span className="text-xs text-gray-400">Showing {processed.length} of {inventors.length}</span>
@@ -243,6 +267,32 @@ function InventorRow({
     .filter(Boolean)
     .join(', ')
 
+  const [editingCity, setEditingCity] = useState(false)
+  const [newCity, setNewCity] = useState('')
+  const [newState, setNewState] = useState('')
+
+  const updateCityMut = useMutation({
+    mutationFn: ({ city, state }: { city: string; state?: string }) =>
+      api.updateInventorCity(projectId, inv.employee_id || inv.legal_name, city, state || undefined),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['inventors', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['physical-awards', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['cost-summary', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['tax-rates', projectId] })
+      setEditingCity(false)
+      if (data.tax_jurisdiction_created) {
+        alert(`Tax jurisdiction "${newCity}" was created with 0% rate. Update the rate in the Costs tab.`)
+      }
+    },
+  })
+
+  const startEditCity = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setNewCity(inv.work_city || '')
+    setNewState(inv.work_state || '')
+    setEditingCity(true)
+  }
+
   const [editingAwardType, setEditingAwardType] = useState(false)
   const [newAwardType, setNewAwardType] = useState('')
 
@@ -282,7 +332,50 @@ function InventorRow({
         </td>
         <td className="px-4 py-3 font-mono text-xs text-gray-600">{inv.employee_id || '-'}</td>
         <td className="px-4 py-3 text-gray-600 text-xs">{inv.work_email || '-'}</td>
-        <td className="px-4 py-3 text-xs text-gray-600">{location || '-'}</td>
+        <td className="px-4 py-3 text-xs text-gray-600">
+          {editingCity ? (
+            <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+              <input
+                type="text"
+                value={newCity}
+                onChange={e => setNewCity(e.target.value)}
+                placeholder="City"
+                className="w-24 px-1.5 py-0.5 border border-blue-300 rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none"
+                autoFocus
+              />
+              <input
+                type="text"
+                value={newState}
+                onChange={e => setNewState(e.target.value)}
+                placeholder="State"
+                className="w-14 px-1.5 py-0.5 border border-blue-300 rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none"
+              />
+              <button
+                onClick={() => { if (newCity.trim()) updateCityMut.mutate({ city: newCity.trim(), state: newState.trim() || undefined }) }}
+                disabled={updateCityMut.isPending}
+                className="p-0.5 text-green-600 hover:bg-green-50 rounded cursor-pointer border-0 bg-transparent"
+              >
+                <Check className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={() => setEditingCity(false)} className="p-0.5 text-gray-400 hover:bg-gray-100 rounded cursor-pointer border-0 bg-transparent">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 group">
+              <span className={inv.work_city?.toLowerCase() === 'remote' ? 'text-amber-600 font-medium' : ''}>
+                {location || '-'}
+              </span>
+              <button
+                onClick={startEditCity}
+                className="p-0.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer border-0 bg-transparent opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Edit city"
+              >
+                <Pencil className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+        </td>
         <td className="px-4 py-3">
           {inv.employment_status ? (
             <span className={`inline-block px-2 py-0.5 text-xs rounded-full font-medium ${

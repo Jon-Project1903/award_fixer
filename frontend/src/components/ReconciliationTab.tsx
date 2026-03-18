@@ -48,10 +48,19 @@ export default function ReconciliationTab({ projectId }: { projectId: number }) 
       : <ArrowDown className="w-3 h-3 ml-1" />
   }
 
-  const { data: reconciliations = [], isLoading: loadingRecs } = useQuery({
-    queryKey: ['reconciliations', projectId, statusFilter],
-    queryFn: () => api.getReconciliations(projectId, statusFilter || undefined),
+  const serverStatus = statusFilter === 'inventor_mismatch' ? '' : statusFilter
+  const { data: rawReconciliations = [], isLoading: loadingRecs } = useQuery({
+    queryKey: ['reconciliations', projectId, serverStatus],
+    queryFn: () => api.getReconciliations(projectId, serverStatus || undefined),
   })
+
+  const reconciliations = useMemo(() => {
+    if (statusFilter !== 'inventor_mismatch') return rawReconciliations
+    return rawReconciliations.filter((r: any) =>
+      r.inventor_count_db != null && r.inventor_count_unified != null &&
+      r.inventor_count_db !== r.inventor_count_unified
+    )
+  }, [rawReconciliations, statusFilter])
 
   const resolveMutation = useMutation({
     mutationFn: (id: number) => api.resolveReconciliation(id),
@@ -177,6 +186,7 @@ export default function ReconciliationTab({ projectId }: { projectId: number }) 
           { label: 'All', value: '' },
           { label: 'Flagged', value: 'Flagged' },
           { label: 'Passed', value: 'Passed Auto Review' },
+          { label: 'Inventor # Mismatch', value: 'inventor_mismatch' },
         ].map((tab) => (
           <button
             key={tab.value}
