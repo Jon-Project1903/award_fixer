@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api'
 import FileUpload from './FileUpload'
-import { RefreshCw, Loader2, Plus, Trash2, Pencil, Check, X } from 'lucide-react'
+import { RefreshCw, Loader2, Plus, Trash2, Pencil, Check, X, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 
 export default function DataInputTab({ projectId }: { projectId: number }) {
   const queryClient = useQueryClient()
@@ -79,9 +79,9 @@ export default function DataInputTab({ projectId }: { projectId: number }) {
         updateFn={(id, data) => api.updateTaxRate(projectId, id, data)}
         deleteFn={(id) => api.deleteTaxRate(projectId, id)}
         columns={[
-          { key: 'state', label: 'State', type: 'text' },
-          { key: 'jurisdiction', label: 'City', type: 'text' },
-          { key: 'lookup_key', label: 'Lookup Key', type: 'text' },
+          { key: 'state', label: 'State', type: 'text', sortable: true },
+          { key: 'jurisdiction', label: 'City', type: 'text', sortable: true },
+          { key: 'lookup_key', label: 'Lookup Key', type: 'text', hidden: true },
           { key: 'tax_percent', label: 'Tax %', type: 'number' },
         ]}
         emptyRow={{ state: '', jurisdiction: '', lookup_key: '', tax_percent: 0 }}
@@ -93,7 +93,7 @@ export default function DataInputTab({ projectId }: { projectId: number }) {
 
 // ── Reusable CRUD Table Component ───────────────────────────
 
-type Column = { key: string; label: string; type: 'text' | 'number' }
+type Column = { key: string; label: string; type: 'text' | 'number'; sortable?: boolean; hidden?: boolean }
 
 function CrudTable({
   projectId,
@@ -122,6 +122,28 @@ function CrudTable({
   const [editData, setEditData] = useState<Record<string, any>>({})
   const [adding, setAdding] = useState(false)
   const [newData, setNewData] = useState<Record<string, any>>(emptyRow)
+  const [sortKey, setSortKey] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+
+  const visibleColumns = columns.filter(c => !c.hidden)
+
+  const toggleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+  }
+
+  const sortedRows = sortKey
+    ? [...rows].sort((a: any, b: any) => {
+        const av = (a[sortKey] ?? '').toString().toLowerCase()
+        const bv = (b[sortKey] ?? '').toString().toLowerCase()
+        const cmp = av.localeCompare(bv)
+        return sortDir === 'asc' ? cmp : -cmp
+      })
+    : rows
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: [queryKey, projectId] })
 
@@ -134,6 +156,14 @@ function CrudTable({
     const data: Record<string, any> = {}
     columns.forEach(c => { data[c.key] = row[c.key] })
     setEditData(data)
+  }
+
+  const SortIcon = ({ col }: { col: Column }) => {
+    if (!col.sortable) return null
+    if (sortKey !== col.key) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-40" />
+    return sortDir === 'asc'
+      ? <ArrowUp className="w-3 h-3 ml-1" />
+      : <ArrowDown className="w-3 h-3 ml-1" />
   }
 
   return (
@@ -151,16 +181,22 @@ function CrudTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
-              {columns.map(c => (
-                <th key={c.key} className="text-left px-4 py-2.5 font-medium text-gray-600">{c.label}</th>
+              {visibleColumns.map(c => (
+                <th
+                  key={c.key}
+                  className={`text-left px-4 py-2.5 font-medium text-gray-600 ${c.sortable ? 'cursor-pointer select-none' : ''}`}
+                  onClick={c.sortable ? () => toggleSort(c.key) : undefined}
+                >
+                  <span className="inline-flex items-center">{c.label}<SortIcon col={c} /></span>
+                </th>
               ))}
               <th className="w-24 px-4 py-2.5"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {rows.map((row: any) => (
+            {sortedRows.map((row: any) => (
               <tr key={row.id} className="hover:bg-gray-50">
-                {columns.map(c => (
+                {visibleColumns.map(c => (
                   <td key={c.key} className="px-4 py-2.5">
                     {editingId === row.id ? (
                       <input
@@ -193,7 +229,7 @@ function CrudTable({
             ))}
             {adding && (
               <tr className="bg-blue-50/50">
-                {columns.map(c => (
+                {visibleColumns.map(c => (
                   <td key={c.key} className="px-4 py-2.5">
                     <input
                       type={c.type}
@@ -215,7 +251,7 @@ function CrudTable({
               </tr>
             )}
             {rows.length === 0 && !adding && (
-              <tr><td colSpan={columns.length + 1} className="px-4 py-6 text-center text-gray-400 text-sm">No rows yet. Click "Add Row" to get started.</td></tr>
+              <tr><td colSpan={visibleColumns.length + 1} className="px-4 py-6 text-center text-gray-400 text-sm">No rows yet. Click "Add Row" to get started.</td></tr>
             )}
           </tbody>
         </table>
