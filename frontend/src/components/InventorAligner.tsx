@@ -6,6 +6,7 @@ interface AlignedInventor {
   db_inventor_name: string | null
   db_inventor_award_type: string | null
   db_inventor_country: string | null
+  db_inventor_employment_status: string | null
   unified_inventor_id: number | null
   unified_inventor_name: string | null
   score: number
@@ -184,6 +185,11 @@ function InventorRow({ pair, index, choices, onChange }: {
         {pair.db_inventor_award_type && (
           <div className={`text-xs ${pair.db_inventor_award_type === 'Opt-Out' ? 'text-orange-600 font-medium' : 'text-gray-500'}`}>
             Award: {pair.db_inventor_award_type}
+          </div>
+        )}
+        {pair.db_inventor_employment_status && (
+          <div className={`text-xs ${pair.db_inventor_employment_status.toLowerCase() === 'termed' ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+            Employment: {pair.db_inventor_employment_status}
           </div>
         )}
       </div>
