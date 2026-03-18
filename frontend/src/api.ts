@@ -66,6 +66,9 @@ export const api = {
   resolveReconciliation: (id: number) =>
     fetch(`${BASE}/reconciliations/${id}/resolve`, { method: 'PUT' }).then(r => json<any>(r)),
 
+  toggleErroneous: (id: number) =>
+    fetch(`${BASE}/reconciliations/${id}/erroneous`, { method: 'PUT' }).then(r => json<any>(r)),
+
   resolveAllPassed: (projectId: number) =>
     fetch(`${BASE}/projects/${projectId}/resolve-all-passed`, { method: 'POST' }).then(r => json<any>(r)),
 

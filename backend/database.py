@@ -17,6 +17,7 @@ _MIGRATIONS = [
     ("dbsourceinventor", "employee_id", "VARCHAR"),
     ("physicalaward", "work_city", "VARCHAR"),
     ("taxrate", "state", "VARCHAR"),
+    ("patentcrossref", "erroneous", "BOOLEAN DEFAULT 0"),
 ]
 
 

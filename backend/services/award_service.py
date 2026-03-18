@@ -31,6 +31,8 @@ def generate_physical_awards(session: Session, project_id: int) -> dict:
 
     awards = []
     for cr in crossrefs:
+        if cr.erroneous:
+            continue
         db_pat = session.get(DbSourcePatent, cr.db_source_patent_id)
         if not db_pat:
             continue

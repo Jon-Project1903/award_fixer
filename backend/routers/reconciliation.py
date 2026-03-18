@@ -39,6 +39,7 @@ def list_reconciliations(
             "id": cr.id,
             "status": cr.status,
             "resolved": cr.resolved,
+            "erroneous": cr.erroneous,
             "match_score": cr.match_score,
             "notes": cr.notes,
             "patent_no": db_pat.patent_no if db_pat else (uni_pat.publication_number if uni_pat else ""),
@@ -156,6 +157,7 @@ def get_reconciliation_detail(crossref_id: int, session: Session = Depends(get_s
         "project_id": cr.project_id,
         "status": cr.status,
         "resolved": cr.resolved,
+        "erroneous": cr.erroneous,
         "match_score": cr.match_score,
         "title_score": cr.title_score,
         "date_match": cr.date_match,
@@ -317,6 +319,17 @@ def resolve_all_passed(project_id: int, session: Session = Depends(get_session))
         count += 1
     session.commit()
     return {"ok": True, "resolved_count": count}
+
+
+@router.put("/api/reconciliations/{crossref_id}/erroneous")
+def toggle_erroneous(crossref_id: int, session: Session = Depends(get_session)):
+    cr = session.get(PatentCrossRef, crossref_id)
+    if not cr:
+        raise HTTPException(status_code=404, detail="Not found")
+    cr.erroneous = not cr.erroneous
+    session.add(cr)
+    session.commit()
+    return {"ok": True, "erroneous": cr.erroneous}
 
 
 @router.put("/api/reconciliations/{crossref_id}/resolve")

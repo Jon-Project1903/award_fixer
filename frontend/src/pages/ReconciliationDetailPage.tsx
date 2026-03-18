@@ -5,7 +5,7 @@ import { api } from '../api'
 import StatusBadge from '../components/StatusBadge'
 import FieldPicker from '../components/FieldPicker'
 import InventorAligner from '../components/InventorAligner'
-import { ArrowLeft, Save, CheckCircle, Loader2, ExternalLink } from 'lucide-react'
+import { ArrowLeft, Save, CheckCircle, Loader2, ExternalLink, Ban } from 'lucide-react'
 
 export default function ReconciliationDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -92,6 +92,15 @@ export default function ReconciliationDetailPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reconciliation', crossrefId] }),
   })
 
+  const erroneousMutation = useMutation({
+    mutationFn: () => api.toggleErroneous(crossrefId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reconciliation', crossrefId] })
+      queryClient.invalidateQueries({ queryKey: ['reconciliations'] })
+      queryClient.invalidateQueries({ queryKey: ['project'] })
+    },
+  })
+
   const resolveMutation = useMutation({
     mutationFn: async () => {
       // Save choices first, then mark resolved
@@ -132,37 +141,54 @@ export default function ReconciliationDetailPage() {
           </button>
 
           <div className="flex items-center gap-3">
-            <StatusBadge status={data.status} resolved={data.resolved} />
+            <StatusBadge status={data.status} resolved={data.resolved} erroneous={data.erroneous} />
             {data.match_score != null && (
               <span className="text-sm text-gray-500">
                 Score: {Math.round(data.match_score * 100)}%
               </span>
             )}
             <button
-              onClick={() => saveMutation.mutate()}
-              disabled={saveMutation.isPending}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors cursor-pointer border-0"
+              onClick={() => erroneousMutation.mutate()}
+              disabled={erroneousMutation.isPending}
+              className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg disabled:opacity-50 transition-colors cursor-pointer border-0
+                ${data.erroneous ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}
             >
-              {saveMutation.isPending ? (
+              {erroneousMutation.isPending ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <Save className="w-4 h-4" />
+                <Ban className="w-4 h-4" />
               )}
-              Save
+              {data.erroneous ? 'Unmark Erroneous' : 'Mark Erroneous'}
             </button>
-            {!data.resolved && (
-              <button
-                onClick={() => resolveMutation.mutate()}
-                disabled={resolveMutation.isPending}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors cursor-pointer border-0"
-              >
-                {resolveMutation.isPending ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <CheckCircle className="w-4 h-4" />
+            {!data.erroneous && (
+              <>
+                <button
+                  onClick={() => saveMutation.mutate()}
+                  disabled={saveMutation.isPending}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors cursor-pointer border-0"
+                >
+                  {saveMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  Save
+                </button>
+                {!data.resolved && (
+                  <button
+                    onClick={() => resolveMutation.mutate()}
+                    disabled={resolveMutation.isPending}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors cursor-pointer border-0"
+                  >
+                    {resolveMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <CheckCircle className="w-4 h-4" />
+                    )}
+                    Mark Resolved
+                  </button>
                 )}
-                Mark Resolved
-              </button>
+              </>
             )}
           </div>
         </div>

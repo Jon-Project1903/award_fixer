@@ -248,7 +248,7 @@ export default function ReconciliationTab({ projectId }: { projectId: number }) 
                     </td>
                     <td className="px-4 py-3 max-w-xs truncate">{rec.title}</td>
                     <td className="px-4 py-3 text-center">
-                      <StatusBadge status={rec.status} resolved={rec.resolved} />
+                      <StatusBadge status={rec.status} resolved={rec.resolved} erroneous={rec.erroneous} />
                     </td>
                     <td className="px-4 py-3 text-center">
                       {rec.match_score != null ? `${Math.round(rec.match_score * 100)}%` : '-'}

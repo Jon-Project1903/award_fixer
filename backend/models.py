@@ -76,6 +76,7 @@ class PatentCrossRef(SQLModel, table=True):
     notes: Optional[str] = None
     resolved: bool = False
     resolved_at: Optional[datetime] = None
+    erroneous: bool = False
 
 
 class ReconciliationChoice(SQLModel, table=True):
