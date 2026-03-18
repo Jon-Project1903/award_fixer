@@ -76,7 +76,8 @@ export default function ReconciliationDetailPage() {
   }, [data])
 
   const handleChange = useCallback((fieldName: string, source: string, value: string) => {
-    setChoices(prev => ({ ...prev, [fieldName]: { source, value } }))
+    const finalValue = fieldName === 'title' ? value.toUpperCase() : value
+    setChoices(prev => ({ ...prev, [fieldName]: { source, value: finalValue } }))
   }, [])
 
   const saveMutation = useMutation({

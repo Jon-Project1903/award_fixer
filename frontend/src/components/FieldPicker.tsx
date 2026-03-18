@@ -67,43 +67,39 @@ export default function FieldPicker({ label, fieldName, dbValue, unifiedValue, s
       <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{label}</div>
 
       {/* Source rows — clickable to pick */}
-      {isMatch ? (
-        <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2 mb-2">
-          <span className="font-medium">{dbValue}</span>
-          <span className="text-green-500 text-xs ml-auto">
+      <div className="space-y-1 mb-2">
+        {isMatch && (
+          <div className="text-xs text-green-600 font-medium mb-1">
             {isCaseMatch ? 'Match (case differs)' : isExactMatch ? 'Match' : 'Match (equivalent)'}
-          </span>
-        </div>
-      ) : (
-        <div className="space-y-1 mb-2">
-          {dbValue != null && (
-            <button
-              onClick={() => pickSource('db_source', dbValue)}
-              className={`flex items-center gap-3 text-sm rounded-lg px-3 py-2 w-full text-left cursor-pointer border transition-colors
-                ${isDbSelected && !isManual ? 'bg-blue-50 border-blue-300 ring-1 ring-blue-200' : 'bg-white border-gray-200 hover:bg-blue-50/50 hover:border-blue-200'}`}
-            >
-              <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-              <span className="flex-1">
-                {showDiff ? <DiffHighlight base={dbValue} compare={unifiedValue!} color="blue" /> : dbValue}
-              </span>
-              <span className="text-xs text-gray-400">Database</span>
-            </button>
-          )}
-          {unifiedValue != null && (
-            <button
-              onClick={() => pickSource('unified', unifiedValue)}
-              className={`flex items-center gap-3 text-sm rounded-lg px-3 py-2 w-full text-left cursor-pointer border transition-colors
-                ${isUniSelected && !isDbSelected && !isManual ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : 'bg-white border-gray-200 hover:bg-amber-50/50 hover:border-amber-200'}`}
-            >
-              <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-              <span className="flex-1">
-                {showDiff ? <DiffHighlight base={unifiedValue} compare={dbValue!} color="amber" /> : unifiedValue}
-              </span>
-              <span className="text-xs text-gray-400">Unified</span>
-            </button>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+        {dbValue != null && (
+          <button
+            onClick={() => pickSource('db_source', dbValue)}
+            className={`flex items-center gap-3 text-sm rounded-lg px-3 py-2 w-full text-left cursor-pointer border transition-colors
+              ${isDbSelected && !isManual ? 'bg-blue-50 border-blue-300 ring-1 ring-blue-200' : 'bg-white border-gray-200 hover:bg-blue-50/50 hover:border-blue-200'}`}
+          >
+            <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+            <span className="flex-1">
+              {showDiff ? <DiffHighlight base={dbValue} compare={unifiedValue!} color="blue" /> : dbValue}
+            </span>
+            <span className="text-xs text-gray-400">Database</span>
+          </button>
+        )}
+        {unifiedValue != null && (
+          <button
+            onClick={() => pickSource('unified', unifiedValue)}
+            className={`flex items-center gap-3 text-sm rounded-lg px-3 py-2 w-full text-left cursor-pointer border transition-colors
+              ${isUniSelected && !isDbSelected && !isManual ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-200' : 'bg-white border-gray-200 hover:bg-amber-50/50 hover:border-amber-200'}`}
+          >
+            <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+            <span className="flex-1">
+              {showDiff ? <DiffHighlight base={unifiedValue} compare={dbValue!} color="amber" /> : unifiedValue}
+            </span>
+            <span className="text-xs text-gray-400">Unified</span>
+          </button>
+        )}
+      </div>
 
       {/* Resolved value — the final output */}
       <div className="flex items-center gap-2">
