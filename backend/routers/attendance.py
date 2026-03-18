@@ -52,7 +52,9 @@ def populate_from_inventors(project_id: int, session: Session = Depends(get_sess
     ).all()
 
     added = 0
+    termed = 0
     seen_keys: set[str] = set()
+    termed_keys: set[str] = set()
     for cr in crossrefs:
         inventors = session.exec(
             select(DbSourceInventor).where(
@@ -60,12 +62,17 @@ def populate_from_inventors(project_id: int, session: Session = Depends(get_sess
             )
         ).all()
         for inv in inventors:
-            # Skip termed employees
-            if inv.employment_status and inv.employment_status.lower() == "termed":
-                continue
-            # Use employee_id if available, otherwise fall back to name as dedup key
             emp_id = (inv.employee_id or "").strip()
             dedup_key = emp_id if emp_id else inv.legal_name.strip().lower()
+
+            # Skip termed employees but count them
+            if inv.employment_status and inv.employment_status.lower() == "termed":
+                if dedup_key not in termed_keys:
+                    termed_keys.add(dedup_key)
+                    termed += 1
+                continue
+
+            # Use employee_id if available, otherwise fall back to name as dedup key
             if dedup_key in existing_emp_ids or dedup_key in seen_keys:
                 continue
             seen_keys.add(dedup_key)
@@ -78,10 +85,10 @@ def populate_from_inventors(project_id: int, session: Session = Depends(get_sess
             added += 1
 
     session.commit()
-    total = len(session.exec(
+    total_attendance = len(session.exec(
         select(InventorAttendance).where(InventorAttendance.project_id == project_id)
     ).all())
-    return {"added": added, "total": total}
+    return {"added": added, "termed": termed, "total": total_attendance + termed}
 
 
 @router.put("/{project_id}/attendance/{attendance_id}")

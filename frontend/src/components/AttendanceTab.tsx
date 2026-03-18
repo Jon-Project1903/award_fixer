@@ -69,7 +69,9 @@ export default function AttendanceTab({ projectId }: { projectId: number }) {
               Add All Inventors
             </button>
             {populateMut.data && (
-              <p className="text-xs text-gray-500 mt-1.5">{populateMut.data.added} added ({populateMut.data.total} total)</p>
+              <p className="text-xs text-gray-500 mt-1.5">
+                {populateMut.data.added} added, {populateMut.data.termed} termed ({populateMut.data.total} total)
+              </p>
             )}
           </div>
         </div>
