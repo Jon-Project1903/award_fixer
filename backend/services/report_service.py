@@ -367,7 +367,7 @@ def _build_simple_awards_sheet(ws, session, project_id, model):
 
 
 def _build_remote_inventors_sheet(ws, session, project_id):
-    """Build a sheet listing all inventors whose work_city is 'Remote' (case-insensitive)."""
+    """Build a sheet listing unique inventors whose work_city is 'Remote' (case-insensitive)."""
     crossrefs = session.exec(
         select(PatentCrossRef).where(
             PatentCrossRef.project_id == project_id,
@@ -379,11 +379,11 @@ def _build_remote_inventors_sheet(ws, session, project_id):
         "Legal Name", "Preferred Name", "Employee ID", "Email",
         "Employment Status", "Award Type", "Address",
         "Work City", "Work State", "Country ISO", "Office Location Country",
-        "Patent No.", "Asset Name", "Patent Title", "Issue Date",
     ]
     ws.append(headers)
     _style_header(ws, len(headers))
 
+    seen = set()
     for cr in crossrefs:
         db_pat = session.get(DbSourcePatent, cr.db_source_patent_id)
         if not db_pat:
@@ -399,6 +399,11 @@ def _build_remote_inventors_sheet(ws, session, project_id):
             if not inv.work_city or inv.work_city.strip().lower() != "remote":
                 continue
 
+            key = inv.employee_id or inv.legal_name
+            if key in seen:
+                continue
+            seen.add(key)
+
             row_num = ws.max_row + 1
             ws.cell(row=row_num, column=1, value=inv.legal_name)
             ws.cell(row=row_num, column=2, value=inv.preferred_name or "")
@@ -411,9 +416,5 @@ def _build_remote_inventors_sheet(ws, session, project_id):
             ws.cell(row=row_num, column=9, value=inv.work_state or "")
             ws.cell(row=row_num, column=10, value=inv.work_country_iso or "")
             ws.cell(row=row_num, column=11, value=inv.office_location_country or "")
-            ws.cell(row=row_num, column=12, value=db_pat.patent_no)
-            ws.cell(row=row_num, column=13, value=db_pat.asset_name)
-            ws.cell(row=row_num, column=14, value=db_pat.title)
-            ws.cell(row=row_num, column=15, value=db_pat.issue_date.isoformat() if db_pat.issue_date else "")
 
     _auto_width(ws)
