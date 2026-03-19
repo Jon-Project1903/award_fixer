@@ -79,6 +79,10 @@ def generate_report(session: Session, project_id: int) -> io.BytesIO:
         ws_type = wb.create_sheet(sheet_name)
         _build_awards_sheet(ws_type, by_type[award_type])
 
+    # --- Remote Inventors sheet ---
+    ws_remote = wb.create_sheet("Remote Inventors")
+    _build_remote_inventors_sheet(ws_remote, session, project_id)
+
     # --- Opt-Outs sheet ---
     ws_opt = wb.create_sheet("Opt-Outs")
     _build_simple_awards_sheet(ws_opt, session, project_id, OptOutAward)
@@ -358,5 +362,58 @@ def _build_simple_awards_sheet(ws, session, project_id, model):
         ws.cell(row=row_num, column=3, value=a.patent_number)
         ws.cell(row=row_num, column=4, value=a.work_state or "")
         ws.cell(row=row_num, column=5, value=a.work_city or "")
+
+    _auto_width(ws)
+
+
+def _build_remote_inventors_sheet(ws, session, project_id):
+    """Build a sheet listing all inventors whose work_city is 'Remote' (case-insensitive)."""
+    crossrefs = session.exec(
+        select(PatentCrossRef).where(
+            PatentCrossRef.project_id == project_id,
+            PatentCrossRef.db_source_patent_id != None,
+        )
+    ).all()
+
+    headers = [
+        "Legal Name", "Preferred Name", "Employee ID", "Email",
+        "Employment Status", "Award Type", "Address",
+        "Work City", "Work State", "Country ISO", "Office Location Country",
+        "Patent No.", "Asset Name", "Patent Title", "Issue Date",
+    ]
+    ws.append(headers)
+    _style_header(ws, len(headers))
+
+    for cr in crossrefs:
+        db_pat = session.get(DbSourcePatent, cr.db_source_patent_id)
+        if not db_pat:
+            continue
+
+        inventors = session.exec(
+            select(DbSourceInventor).where(
+                DbSourceInventor.db_source_patent_id == db_pat.id
+            )
+        ).all()
+
+        for inv in inventors:
+            if not inv.work_city or inv.work_city.strip().lower() != "remote":
+                continue
+
+            row_num = ws.max_row + 1
+            ws.cell(row=row_num, column=1, value=inv.legal_name)
+            ws.cell(row=row_num, column=2, value=inv.preferred_name or "")
+            ws.cell(row=row_num, column=3, value=inv.employee_id or "")
+            ws.cell(row=row_num, column=4, value=inv.work_email or "")
+            ws.cell(row=row_num, column=5, value=inv.employment_status or "")
+            ws.cell(row=row_num, column=6, value=inv.award_type or "")
+            ws.cell(row=row_num, column=7, value=inv.address or "")
+            ws.cell(row=row_num, column=8, value=inv.work_city or "")
+            ws.cell(row=row_num, column=9, value=inv.work_state or "")
+            ws.cell(row=row_num, column=10, value=inv.work_country_iso or "")
+            ws.cell(row=row_num, column=11, value=inv.office_location_country or "")
+            ws.cell(row=row_num, column=12, value=db_pat.patent_no)
+            ws.cell(row=row_num, column=13, value=db_pat.asset_name)
+            ws.cell(row=row_num, column=14, value=db_pat.title)
+            ws.cell(row=row_num, column=15, value=db_pat.issue_date.isoformat() if db_pat.issue_date else "")
 
     _auto_width(ws)
